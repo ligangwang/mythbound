@@ -25,6 +25,13 @@ import bellqueen from "./art/bellqueen.webp";
 import wardenArt from "./art/warden.webp";
 import antlerelder from "./art/antlerelder.webp";
 import silvermoon from "./art/silvermoon.webp";
+import tidepupArt from "./art/tidepup.webp";
+import emberwingArt from "./art/emberwing.webp";
+import shellsageArt from "./art/shellsage.webp";
+import lanternwispArt from "./art/lanternwisp.webp";
+import inkmonkeyArt from "./art/inkmonkey.webp";
+import bellmothArt from "./art/bellmoth.webp";
+import mosslingArt from "./art/mossling.webp";
 import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type Place = RealmId | "home";
@@ -328,18 +335,24 @@ type Actor = {
 /** Places that have a painted backdrop in the darker look: picture and its shape. */
 const BACKDROPS: Partial<Record<Place, [string, number]>> = { shores: [shoresArt, 1672 / 941], home: [shoresArt, 1672 / 941] };
 const paintings = new Map<string, THREE.Texture>();
-/** Spirits that have a painting in the darker look: picture, its shape, its height, how high it floats. */
-const PAINTED: Record<string, [string, number, number, number?]> = {
-  tidepup: [stormhound, 895 / 1100, 2.5],
-  emberwing: [sunplume, 721 / 1100, 2.9],
-  shellsage: [mountainback, 885 / 1100, 2.7],
-  tidewhale: [tidewhale, 1956 / 1100, 2.3, 0.9],
-  lanternwisp: [lanternlord, 749 / 1100, 2.2, 0.7],
-  inkmonkey: [scrollsage, 742 / 1100, 2.6],
-  bellmoth: [bellqueen, 933 / 1100, 2.5, 0.6],
-  warden: [wardenArt, 1074 / 1100, 3],
-  mossling: [antlerelder, 1266 / 1100, 2.9],
-  moonfox: [silvermoon, 1440 / 1100, 2.6],
+type Art = [picture: string, shape: number, height: number, lift?: number];
+/** Spirits that have a painting in the darker look, young then grown: picture, its shape, its height, how high it floats. */
+const PAINTED: Record<string, [young: Art | null, grown: Art | null]> = {
+  tidepup: [[tidepupArt, 887 / 1100, 1.5], [stormhound, 895 / 1100, 2.5]],
+  emberwing: [[emberwingArt, 522 / 1100, 1.8], [sunplume, 721 / 1100, 2.9]],
+  shellsage: [[shellsageArt, 1177 / 1100, 1.4], [mountainback, 885 / 1100, 2.7]],
+  tidewhale: [null, [tidewhale, 1956 / 1100, 2.3, 0.9]],
+  lanternwisp: [[lanternwispArt, 553 / 1100, 1.5, 0.8], [lanternlord, 749 / 1100, 2.2, 0.7]],
+  inkmonkey: [[inkmonkeyArt, 826 / 1100, 1.6], [scrollsage, 742 / 1100, 2.6]],
+  bellmoth: [[bellmothArt, 1102 / 1100, 1.5, 0.7], [bellqueen, 933 / 1100, 2.5, 0.6]],
+  warden: [null, [wardenArt, 1074 / 1100, 3]],
+  mossling: [[mosslingArt, 685 / 1100, 1.8], [antlerelder, 1266 / 1100, 2.9]],
+  moonfox: [null, [silvermoon, 1440 / 1100, 2.6]],
+};
+/** The painting for a spirit at this stage, or its other stage's while that one is still to come. */
+const painted = (id: string | null, stage: number): Art | undefined => {
+  const pair = DARK && id ? PAINTED[id] : undefined;
+  return (pair && (pair[stage > 0 ? 1 : 0] ?? pair[0] ?? pair[1])) || undefined;
 };
 const BINDER_ART: [string, number] =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("binder") === "m"
@@ -767,7 +780,7 @@ export class World {
     this.drop(this.main);
     // A phone's stage is narrow, so a guardian stays its own size there.
     const tall = this.camera.aspect < 0.9;
-    const art = DARK && id ? PAINTED[id] : undefined;
+    const art = painted(id, stage);
     this.main = !id
       ? null
       : art
@@ -784,7 +797,7 @@ export class World {
   /** The team spirit standing with the binder. */
   showAlly(id: string | null, stage = 0) {
     this.drop(this.ally);
-    const art = DARK && id ? PAINTED[id] : undefined;
+    const art = painted(id, stage);
     this.ally = !id
       ? null
       : art
