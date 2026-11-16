@@ -47,6 +47,23 @@ function toonGradient() {
 }
 
 const materials = new Map<string, THREE.Material>();
+const glows: [THREE.MeshBasicMaterial, THREE.Color][] = [];
+let glowing = true;
+/**
+ * A colour made as bright as `light` (1 is white), keeping its hue. Above 1 it
+ * is brighter than the screen can show, which the stage's bloom turns to glow.
+ * A dark red needs far more of a push than a white does to shine the same.
+ */
+export function lit(color: THREE.ColorRepresentation, light: number) {
+  const c = new THREE.Color(color);
+  const now = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  return c.multiplyScalar(Math.min(4.5, Math.max(1, light / Math.max(0.05, now))));
+}
+/** Glowing parts shine on the stage; a codex portrait wants their true colour. */
+export function setGlow(on = true) {
+  glowing = on;
+  for (const [m, base] of glows) m.color.copy(on ? lit(base, 1.45) : base);
+}
 function material(color: string, kind: "toon" | "glow" | "flat") {
   const key = `${kind}:${color}`;
   let m = materials.get(key);
@@ -55,6 +72,11 @@ function material(color: string, kind: "toon" | "glow" | "flat") {
       kind === "toon"
         ? new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() })
         : new THREE.MeshBasicMaterial({ color });
+    if (kind === "glow") {
+      const glow = m as THREE.MeshBasicMaterial;
+      glows.push([glow, glow.color.clone()]);
+      if (glowing) glow.color.copy(lit(glow.color, 1.45));
+    }
     m.side = THREE.DoubleSide;
     materials.set(key, m);
   }

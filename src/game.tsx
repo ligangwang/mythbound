@@ -194,7 +194,7 @@ export function MythboundGame() {
   // In development only: lets a script jump to any point of the journey.
   useEffect(() => {
     if (import.meta.env.DEV)
-      Object.assign(window, { mythbound: { commit, go: setScreen, own: setOwned, look: setPrefs } });
+      Object.assign(window, { mythbound: { commit, go: setScreen, own: setOwned, look: setPrefs, world: () => world.current } });
   }, [commit]);
 
   const ink = INKS[owned.has(prefs.ink) ? prefs.ink : ""];
@@ -695,7 +695,7 @@ function BattleView({ game, id, onAlly }: { game: Game; id: RealmId; onAlly: (in
       if (event.type === "strike") {
         world?.act("attack", "ally");
         await wait(280);
-        world?.act("hurt");
+        world?.act("hurt", "main", event.multiplier);
         game.play("strike");
         setBattle((b) => ({ ...b, boss: next.boss }));
         setLine(
@@ -709,7 +709,7 @@ function BattleView({ game, id, onAlly }: { game: Game; id: RealmId; onAlly: (in
       } else if (event.type === "bossStrike") {
         world?.act("attack");
         await wait(280);
-        world?.act("hurt", "ally");
+        world?.act("hurt", "ally", event.heavy ? 1.5 : 1);
         game.play("hurt");
         setBattle((b) => ({ ...b, team: next.team }));
         setLine(
