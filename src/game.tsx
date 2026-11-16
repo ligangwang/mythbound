@@ -108,8 +108,26 @@ function Bar({ value, max, className = "" }: { value: number; max: number; class
     </span>
   );
 }
+/** Portraits are painted one at a time between frames, so a full codex opens without a hitch. */
+let painting: Promise<void> = Promise.resolve();
 function Portrait({ game, id, evolved = false, hidden = false }: { game: Game; id: string; evolved?: boolean; hidden?: boolean }) {
-  const src = game.portrait(id, stageOf(spirit(id), evolved), hidden);
+  const stage = stageOf(spirit(id), evolved);
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    let live = true;
+    painting = painting.then(
+      () =>
+        new Promise<void>((done) =>
+          setTimeout(() => {
+            if (live) setSrc(game.portrait(id, stage, hidden));
+            done();
+          }, 0),
+        ),
+    );
+    return () => {
+      live = false;
+    };
+  }, [id, stage, hidden]);
   return (
     <span className={`portrait${hidden ? " hidden" : ""}`}>
       {src ? <img src={src} alt="" draggable={false} /> : null}
