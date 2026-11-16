@@ -27,6 +27,16 @@ level = grey_opening(alpha, size=(1, 90))
 seam = (level > 20) & (grey_opening(alpha, size=(11, 1)) < 20) & ~body
 seam = binary_dilation(seam, iterations=2) & ~body
 alpha = np.where(seam, 0, alpha)
+# HOLES=1: also open large patches of bare ground enclosed by the figure (inside a halo, between tails).
+import os
+if os.environ.get("HOLES"):
+    from scipy.ndimage import label, gaussian_filter
+    bare = binary_opening(dist < 7, iterations=3)
+    marks, n = label(bare)
+    sizes = np.bincount(marks.ravel())
+    big = np.isin(marks, [i for i in range(1, n + 1) if sizes[i] > 500])
+    big = binary_dilation(big, iterations=3) & (dist < 14)
+    alpha = alpha * (1 - gaussian_filter(big.astype(np.float32), 1.2))
 res = np.dstack([rgb, alpha]).astype(np.uint8)
 im = Image.fromarray(res, "RGBA"); im.save(dst)
 prev = Image.new("RGB", (w * 2, h), (30, 38, 50)); prev.paste(Image.new("RGB", (w, h), (235, 225, 205)), (w, 0))
