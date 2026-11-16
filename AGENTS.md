@@ -32,4 +32,5 @@ Notes for AI coding agents working on Mythbound (灵契藏鉴).
   `call-` (a summoning charm for the spirit named after it). Keep it kind to
   kids: nothing is random, no loot boxes, legendary spirits are never sold,
   and everything a charm gives can be found by playing.
-- `game.json` names a `cover` (`public/cover.jpg`, 800×500); dingn needs one.
+- `game.json` names a `cover` (`public/cover.jpg`, 1200×750, no text on it); dingn needs
+  one in every upload.
