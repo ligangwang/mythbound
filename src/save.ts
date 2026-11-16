@@ -30,8 +30,8 @@ export async function storeSave(sdk: DingnGame, save: Save) {
     await sdk.progress.save({ journey: json }).catch(() => {});
 }
 
-/** Choices kept on the device: sound, and the ink and robe being worn. */
-export type Prefs = { sound: boolean; ink: string; robe: string };
+/** Choices kept on the device: sound, the ink and robe being worn, and whether the binder is a girl or a boy. */
+export type Prefs = { sound: boolean; ink: string; robe: string; binder: "f" | "m" };
 export async function loadPrefs(sdk: DingnGame): Promise<Prefs> {
   const data = (await sdk.storage.get(PREFS_KEY).catch(() => null)) as
     | Partial<Prefs>
@@ -40,6 +40,7 @@ export async function loadPrefs(sdk: DingnGame): Promise<Prefs> {
     sound: data?.sound !== false,
     ink: typeof data?.ink === "string" ? data.ink : "",
     robe: typeof data?.robe === "string" ? data.robe : "",
+    binder: data?.binder === "m" ? "m" : "f",
   };
 }
 export function storePrefs(sdk: DingnGame, prefs: Prefs) {

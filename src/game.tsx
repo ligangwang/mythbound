@@ -51,6 +51,7 @@ import { MINI_GAMES, MINI_NAMES, StrikeMeter } from "./minigames";
 import { Badges, earnCoins, loadPrefs, loadSave, storePrefs, storeSave, type Prefs } from "./save";
 import { CATALOG, INKS, SHELVES, buy, calledBy, loadOwned, perksFrom, type Shelf } from "./shop";
 import { Sound, type SoundName } from "./sound";
+import { BINDERS, PAINTED, painted, type BinderLook } from "./art";
 import { ROBES } from "./spirit-models";
 import { World, type Place } from "./world";
 
@@ -76,6 +77,8 @@ type Game = {
   toast: (text: string) => void;
   pick: (text: Text) => string;
   nameOf: (id: string, evolved?: boolean) => string;
+  binder: BinderLook;
+  setBinder: (look: BinderLook) => void;
 };
 
 const STOP_MARKS: Record<StopKind, string> = { wild: "灵", cache: "玉", shrine: "祠", boss: "守" };
@@ -112,8 +115,10 @@ function Bar({ value, max, className = "" }: { value: number; max: number; class
 let painting: Promise<void> = Promise.resolve();
 function Portrait({ game, id, evolved = false, hidden = false }: { game: Game; id: string; evolved?: boolean; hidden?: boolean }) {
   const stage = stageOf(spirit(id), evolved);
+  const art = painted(id, stage);
   const [src, setSrc] = useState("");
   useEffect(() => {
+    if (art) return;
     let live = true;
     painting = painting.then(
       () =>
@@ -127,7 +132,13 @@ function Portrait({ game, id, evolved = false, hidden = false }: { game: Game; i
     return () => {
       live = false;
     };
-  }, [id, stage, hidden]);
+  }, [id, stage, hidden, art]);
+  if (art)
+    return (
+      <span className={`portrait art${hidden ? " shade" : ""}`}>
+        <img src={art[0]} alt="" draggable={false} />
+      </span>
+    );
   return (
     <span className={`portrait${hidden ? " hidden" : ""}`}>
       {src ? <img src={src} alt="" draggable={false} /> : null}
@@ -142,7 +153,7 @@ export function MythboundGame() {
   const world = useRef<World | null>(null);
   const [save, setSave] = useState<Save | null>(null);
   const [owned, setOwned] = useState<Set<string>>(new Set());
-  const [prefs, setPrefs] = useState<Prefs>({ sound: true, ink: "", robe: "" });
+  const [prefs, setPrefs] = useState<Prefs>({ sound: true, ink: "", robe: "", binder: "f" });
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const [toast, setToast] = useState<{ text: string; id: number } | null>(null);
   const badges = useMemo(() => new Badges(sdk), []);
@@ -201,7 +212,7 @@ export function MythboundGame() {
   const robe = owned.has(prefs.robe) ? prefs.robe : "";
   sound.on = prefs.sound;
   useEffect(() => world.current?.setInk(ink), [ink]);
-  useEffect(() => world.current?.setBinder(robe), [robe]);
+  useEffect(() => world.current?.setBinder(robe, prefs.binder), [robe, prefs.binder]);
 
   // Keep the 3D stage in step with the screen.
   const place: Place = "realm" in screen ? screen.realm : "home";
@@ -277,6 +288,13 @@ export function MythboundGame() {
     nameOf: (id, evolved) => {
       const def = spirit(id);
       return pick(def.names[stageOf(def, evolved ?? !!save.spirits[id]?.evolved)]);
+    },
+    binder: prefs.binder,
+    setBinder: (look) => {
+      sound.play("tap");
+      const next = { ...prefs, binder: look };
+      setPrefs(next);
+      storePrefs(sdk, next);
     },
   };
   const back: Screen | null =
@@ -364,6 +382,29 @@ function SignInHint() {
   );
 }
 
+const BINDER_NAMES: Record<BinderLook, string> = { f: "Girl", m: "Boy" };
+/** The binder is a girl or a boy, as the player likes; it changes nothing but the picture. */
+function BinderChoice({ game }: { game: Game }) {
+  const { t } = useLocale();
+  if (!painted("tidepup", 0)) return null;
+  return (
+    <div className="binders" role="group" aria-label={t("Your binder")}>
+      <span>{t("Your binder")}</span>
+      {(["f", "m"] as const).map((look) => (
+        <button
+          key={look}
+          className={`binder-pick${game.binder === look ? " on" : ""}`}
+          aria-pressed={game.binder === look}
+          onClick={() => game.setBinder(look)}
+        >
+          <img src={BINDERS[look][0]} alt="" draggable={false} />
+          {t(BINDER_NAMES[look])}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Home({ game }: { game: Game }) {
   const { t } = useLocale();
   const { save, pick } = game;
@@ -377,6 +418,7 @@ function Home({ game }: { game: Game }) {
         <p className="lead">
           {t("The old codex is empty and the spirits have scattered. Choose your first companion, binder.")}
         </p>
+        <BinderChoice game={game} />
         <div className="starters">
           {STARTERS.map((id) => {
             const def = spirit(id);
@@ -969,11 +1011,13 @@ function Shop({
         {t("Paid with dingn coins. Every spirit a charm calls can also be found in the realms, and nothing here is random.")}
       </p>
       <SignInHint />
+      <BinderChoice game={game} />
       {SHELVES.map((shelf) => (
         <div key={shelf}>
-          <h3>{t(SHELF_NAMES[shelf])}</h3>
+          {/* A painted binder wears the robe they were painted in. */}
+          <h3>{t(PAINTED && shelf === "looks" ? "Brush ink" : SHELF_NAMES[shelf])}</h3>
           <ul className="shop">
-            {CATALOG.filter((item) => item.shelf === shelf).map((item) => {
+            {CATALOG.filter((item) => item.shelf === shelf && !(PAINTED && item.id.startsWith("robe-"))).map((item) => {
               const mine = game.owned.has(item.id);
               const look = item.id.startsWith("ink-") ? "ink" : item.id.startsWith("robe-") ? "robe" : null;
               const called = shelf === "charms" && !!game.save.spirits[item.id.slice(5)];

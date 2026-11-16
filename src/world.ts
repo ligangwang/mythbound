@@ -12,9 +12,10 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import type { Element } from "./engine/elements";
 import { hash, rng } from "./engine/random";
 import { spirit, type RealmId } from "./engine/spirits";
-import { INK, buildBinder, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
+import { BACKDROPS, BINDERS, painted, type Backdrop, type BinderLook, type Place } from "./art";
+import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
-export type Place = RealmId | "home";
+export type { Place };
 export type Action = "appear" | "attack" | "hurt" | "bound" | "flee" | "evolve" | "cast";
 
 type Theme = {
@@ -27,7 +28,12 @@ type Theme = {
   /** The colour of the main light and of the light from behind. */
   key: string;
   rim: string;
+  /** The colour of the mist, where it isn't the paper's. */
+  mist?: string;
 };
+/** The darker look being tried out: an ink painting of the night. */
+const NIGHT: Theme = { paper: "#27303b", ink: "#0b0e13", far: "#55687a", sun: "#dfe9f2", ground: "#3b4652", kind: "peaks", key: "#c9d8ee", rim: "#6fc4ff", mist: "#7d93a6" };
+const themeOf = (place: Place): Theme => (DARK ? { ...NIGHT, kind: THEMES[place].kind } : THEMES[place]);
 const THEMES: Record<Place, Theme> = {
   home: { paper: "#efe6d2", ink: "#2c2a28", far: "#7d8790", sun: "#c8442f", ground: "#cfc3a8", kind: "peaks", key: "#fff4e0", rim: "#ffd9c2" },
   shores: { paper: "#e9e6da", ink: "#27353f", far: "#6f8794", sun: "#c8442f", ground: "#b9c4c4", kind: "peaks", key: "#f2f8ff", rim: "#9fd0ee" },
@@ -269,7 +275,7 @@ const PaperShader = {
       // Anything brighter than the screen can show keeps its hue instead of bleaching.
       float most = max(c.r, max(c.g, c.b));
       if (most > 1.0) c.rgb /= most;
-      c.rgb += (grain(floor(vUv * vec2(1400.0, 900.0))) - 0.5) * 0.022;
+      c.rgb += (grain(floor(vUv * vec2(1400.0, 900.0))) - 0.5) * 0.03 * (0.25 + 0.75 * dot(c.rgb, vec3(0.33)));
       c.rgb = mix(c.rgb, vec3(1.0, 0.97, 0.9), flash);
       gl_FragColor = c;
     }`,
@@ -307,6 +313,7 @@ type Actor = {
   shadow: THREE.Mesh;
 };
 
+const paintings = new Map<string, THREE.Texture>();
 const MAIN = new THREE.Vector3(0.9, 0, 0);
 const ALLY = new THREE.Vector3(-0.75, 0, 1.2);
 const BINDER = new THREE.Vector3(-1.75, 0, 0.9);
@@ -337,6 +344,9 @@ export class World {
   private key = new THREE.DirectionalLight("#ffffff", 1.6);
   private rim = new THREE.DirectionalLight("#ffffff", 0.45);
   private weather: Weather[] = [];
+  /** The painted backdrop on show and its shape, when the place has one. */
+  private painting: [THREE.Texture, number] | null = null;
+  private backdropArt: Backdrop | null = null;
   /** The stage's own time, which a hard hit holds still for a moment. */
   private time = 0;
   private real = 0;
@@ -412,13 +422,39 @@ export class World {
     this.camera.lookAt(-0.3, 0.95, 0);
     if (this.paper) this.paper.uniforms.edge.value = tall ? 0.35 : 0.5;
     if (wide) this.camera.setViewOffset(w, h, w * 0.2, -h * 0.02, w, h);
-    else this.camera.setViewOffset(w, h, 0, h * (tall ? 0.2 : 0.22), w, h);
+    else this.camera.setViewOffset(w, h, 0, h * (tall ? (DARK ? 0.06 : 0.2) : 0.22), w, h);
     this.distance = distance;
     if (this.scene.fog instanceof THREE.Fog) {
       this.scene.fog.near = distance + 3;
       this.scene.fog.far = distance + 26;
     }
     this.camera.updateProjectionMatrix();
+    this.fitPainting();
+  }
+
+  /** Shows the middle of the painting, cropped to cover the view whatever its shape. */
+  private fitPainting() {
+    const art = this.backdropArt;
+    if (!art) return;
+    // A phone held upright gets the tall painting where there is one.
+    const [url, shape] = (this.camera.aspect < 0.9 && art.tall) || art.wide;
+    let map = paintings.get(url);
+    if (!map) {
+      map = new THREE.TextureLoader().load(url);
+      map.colorSpace = THREE.SRGBColorSpace;
+      paintings.set(url, map);
+    }
+    this.painting = [map, shape];
+    this.scene.background = map;
+    const view = this.camera.aspect;
+    if (view > shape) {
+      map.repeat.set(1, shape / view);
+      // Keep the ground: crop from the sky.
+      map.offset.set(0, 0);
+    } else {
+      map.repeat.set(view / shape, 1);
+      map.offset.set((1 - view / shape) / 2, 0);
+    }
   }
 
   /** The colour of the binder's ink: runes, bursts and strokes. */
@@ -429,7 +465,8 @@ export class World {
   setPlace(place: Place) {
     if (place === this.place) return;
     this.place = place;
-    const theme = THEMES[place];
+    const theme = themeOf(place);
+    this.rim.intensity = DARK ? 1.3 : 0.45;
     for (const child of [...this.backdrop.children]) {
       this.backdrop.remove(child);
       discard(child);
@@ -437,6 +474,20 @@ export class World {
     this.weather = [];
     this.key.color.set(theme.key);
     this.rim.color.set(theme.rim);
+    const art = DARK ? BACKDROPS[place] : undefined;
+    if (art) {
+      // A painting fills the view; nothing of the code-drawn land is built.
+      this.backdropArt = art;
+      this.scene.fog = null;
+      this.fitPainting();
+      this.motes.visible = false;
+      // Petals fall wherever the paintings have blossom; the wood keeps its fireflies and leaves.
+      this.addWeather(place === "wood" ? "wood" : "home", { ...theme, mist: place === "wood" ? "#b9d6c0" : "#c9b8c6" }, rng(hash(place) + 99));
+      return;
+    }
+    this.painting = null;
+    this.backdropArt = null;
+    this.motes.visible = true;
     this.scene.background = new THREE.Color(theme.paper);
     this.scene.fog = new THREE.Fog(theme.paper, this.distance + 3, this.distance + 26);
     (this.motes.material as THREE.PointsMaterial).color.set(
@@ -524,7 +575,7 @@ export class World {
     const mist = Array.from({ length: 7 }, () => {
       const sprite = add(
         new THREE.Sprite(
-          new THREE.SpriteMaterial({ map: softDot(), color: theme.paper, transparent: true, opacity: 0.55, depthWrite: false, fog: false }),
+          new THREE.SpriteMaterial({ map: softDot(), color: theme.mist ?? theme.paper, transparent: true, opacity: theme.mist ? 0.22 : 0.55, depthWrite: false, fog: false }),
         ),
       );
       sprite.scale.set(10 + random() * 8, 1.6 + random() * 1.6, 1);
@@ -541,11 +592,12 @@ export class World {
 
     /** Small things that fall and tumble: petals and leaves. */
     const falling = (count: number, colors: string[], speed: number) => {
-      const geo = new THREE.PlaneGeometry(0.13, 0.08);
+      // Beside a painting, petals the size of a hand look pasted on.
+      const geo = this.painting ? new THREE.PlaneGeometry(0.075, 0.045) : new THREE.PlaneGeometry(0.13, 0.08);
       const mats = colors.map((color) => new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
       const bits = Array.from({ length: count }, (_, i) => {
         const bit = add(new THREE.Mesh(geo, mats[i % mats.length]));
-        bit.position.set((random() - 0.5) * 16, random() * 7, -5 + random() * 8);
+        bit.position.set((random() - 0.5) * 16, random() * 7, this.painting ? -6 + random() * 6 : -5 + random() * 8);
         bit.userData = { fall: speed * (0.6 + random() * 0.8), sway: random() * 6, spin: 1 + random() * 3 };
         return bit;
       });
@@ -607,7 +659,8 @@ export class World {
     }
     if (place === "wood") {
       // Shafts of light through the canopy.
-      const rays = Array.from({ length: 5 }, (_, i) => {
+      // A painting has its own, so none are drawn over it.
+      const rays = Array.from({ length: this.backdropArt ? 0 : 5 }, (_, i) => {
         const ray = add(
           new THREE.Mesh(
             new THREE.PlaneGeometry(1.2 + random() * 1.6, 13),
@@ -646,9 +699,12 @@ export class World {
     }
   }
 
-  setBinder(robe: string) {
+  setBinder(robe: string, look: BinderLook = "f") {
     this.drop(this.binder);
-    this.binder = this.actor(buildBinder(robe), BINDER, 0.75);
+    // The darker look stands a painted figure where the toy one stood.
+    this.binder = DARK
+      ? this.actor(buildCard(...BINDERS[look], 2.3), new THREE.Vector3(-2.2, 0, 0.5), 0)
+      : this.actor(buildBinder(robe), BINDER, 0.75);
   }
 
   private actor(model: Model, at: THREE.Vector3, turn: number, scale = 1, element?: Element): Actor {
@@ -687,21 +743,29 @@ export class World {
     this.drop(this.main);
     // A phone's stage is narrow, so a guardian stays its own size there.
     const tall = this.camera.aspect < 0.9;
-    this.main = id
-      ? this.actor(
-          buildSpirit(spirit(id), stage),
-          tall ? new THREE.Vector3(0.7, 0, 0) : MAIN,
-          -0.45,
-          big ? (tall ? 0.9 : 1.15) : 1,
-          spirit(id).element,
-        )
-      : null;
+    const art = painted(id, stage);
+    this.main = !id
+      ? null
+      : art
+        ? this.actor(buildCard(art[0], art[1], art[2], false, art[3]), tall ? new THREE.Vector3(0.7, 0, 0) : new THREE.Vector3(1.5, 0, -0.2), 0, 1, spirit(id).element)
+        : this.actor(
+            buildSpirit(spirit(id), stage),
+            tall ? new THREE.Vector3(0.7, 0, 0) : MAIN,
+            -0.45,
+            big ? (tall ? 0.9 : 1.15) : 1,
+            spirit(id).element,
+          );
     if (this.main) this.act("appear");
   }
   /** The team spirit standing with the binder. */
   showAlly(id: string | null, stage = 0) {
     this.drop(this.ally);
-    this.ally = id ? this.actor(buildSpirit(spirit(id), stage), ALLY, 0.7, 0.75, spirit(id).element) : null;
+    const art = painted(id, stage);
+    this.ally = !id
+      ? null
+      : art
+        ? this.actor(buildCard(art[0], art[1], art[2] * 0.6, true, (art[3] ?? 0) * 0.6), new THREE.Vector3(-0.95, 0, 1.7), 0, 1, spirit(id).element)
+        : this.actor(buildSpirit(spirit(id), stage), ALLY, 0.7, 0.75, spirit(id).element);
   }
   /** Spirits gathered around the binder on the home screen. */
   showLineup(list: { id: string; stage: number }[]) {
@@ -710,16 +774,23 @@ export class World {
     const spots =
       this.camera.aspect < 0.9
         ? [[0.35, 0.8], [1.45, -0.5], [-0.6, -1.7]]
-        : [[0.25, 0.9], [1.75, 0.5], [-0.8, -1.3], [1.0, -2.3], [2.7, -1.5], [-2.3, -2.6]];
+        : DARK
+          ? // Paintings are wide, so the team stands in one row with room between.
+            [[-0.9, 1.7], [0.45, 1.0], [1.65, 0.3]]
+          : [[0.25, 0.9], [1.75, 0.5], [-0.8, -1.3], [1.0, -2.3], [2.7, -1.5], [-2.3, -2.6]];
     this.lineup = list.slice(0, spots.length).map(({ id, stage }, i) =>
-      this.actor(
+{
+      const art = painted(id, stage);
+      const at = new THREE.Vector3(spots[i][0], 0, spots[i][1]);
+      if (art) return this.actor(buildCard(art[0], art[1], art[2] * 0.52, true, (art[3] ?? 0) * 0.52), at, 0);
+      return this.actor(
         buildSpirit(spirit(id), stage),
-        new THREE.Vector3(spots[i][0], 0, spots[i][1]),
+        at,
         -0.35 + (i % 3) * 0.3,
         // The one at the back stands tall behind the front row.
         i < 2 ? 0.95 : i === 3 ? 1.15 : 0.8,
-      ),
-    );
+      );
+    });
   }
 
   /**
@@ -760,17 +831,20 @@ export class World {
     const quiet = this.calm ? 0.3 : 1;
     this.shake = (strong ? 0.5 : 0.3) * quiet;
     this.punch = strong ? 1 : 0.55;
-    this.flash = (strong ? 0.3 : 0.14) * quiet;
+    // A pale flash over a night stage would wash it out.
+    this.flash = (strong ? 0.3 : 0.14) * quiet * (DARK ? 0.35 : 1);
     this.freeze = strong ? 0.11 : 0.06;
     const group = new THREE.Group();
     const middle = actor.model.height * actor.scale * 0.5 + actor.model.rig.hover;
     group.position.set(actor.home.x, middle, actor.home.z + 0.3);
     const tilt = Math.random() * Math.PI * 2;
     // The ink of the stroke, then its colour laid over, bright enough to glow.
-    for (const [tint, size, turn] of [
+    // Over a painted figure the black under-stroke reads as a blot, so only the light is drawn.
+    const strokes = [
       [new THREE.Color(INK), 2.5, 0],
       [bright(color, 1.55), 2.2, 0.06],
-    ] as const) {
+    ] as const;
+    for (const [tint, size, turn] of actor.model.flat ? strokes.slice(1) : strokes) {
       const slash = new THREE.Sprite(
         new THREE.SpriteMaterial({ map: brushStroke(), color: tint, transparent: true, depthTest: false, rotation: tilt + turn }),
       );
@@ -975,6 +1049,8 @@ export class World {
     root.position.set(x, y, z);
     root.rotation.y = turn;
     root.rotation.z = lean;
+    // A painted figure is flat, so it squashes and stretches only a little.
+    if (model.flat) stretch = 1 + (stretch - 1) * 0.3;
     const wide = Math.max(0.001, scale / Math.sqrt(stretch));
     root.scale.set(wide, Math.max(0.001, scale * stretch), wide);
     // The shadow stays on the ground, smaller and fainter under a leap.
@@ -994,6 +1070,7 @@ export class World {
     this.freeze = Math.max(0, this.freeze - dt);
     this.time += step;
     const t = this.time;
+    cardTime.value = this.real;
     for (const actor of [this.main, this.ally, this.binder, ...this.lineup])
       if (actor) this.animate(actor, t, step);
     this.motes.rotation.y = t * 0.02;

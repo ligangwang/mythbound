@@ -1,9 +1,11 @@
 /**
- * Every spirit and the binder, built in code from three.js shapes: toon
- * shading in a few flat tones with an ink outline, so they sit in the
- * ink-wash world. No model files. Each spirit faces +Z and stands on y = 0.
+ * The figures on the stage. A painted figure is a picture on a card that
+ * sways (`buildCard`). The older look, kept behind `?classic`, builds every
+ * spirit and the binder from three.js shapes with toon shading and an ink
+ * outline. Each one faces +Z and stands on y = 0.
  */
 import * as THREE from "three";
+import { PAINTED } from "./art";
 import type { Form, SpiritDef } from "./engine/spirits";
 
 export const INK = "#1d1b19";
@@ -29,13 +31,20 @@ export type Rig = {
   /** How high it floats above the ground (0 for walkers). */
   hover: number;
 };
-export type Model = { root: THREE.Group; rig: Rig; height: number };
+export type Model = { root: THREE.Group; rig: Rig; height: number; flat?: boolean };
+
+/** The painted look wants dusk lighting and deeper toon tones behind its figures. */
+export const DARK = PAINTED;
 
 let gradient: THREE.DataTexture | null = null;
 function toonGradient() {
   if (!gradient) {
     gradient = new THREE.DataTexture(
-      new Uint8Array([110, 110, 110, 255, 190, 190, 190, 255, 255, 255, 255, 255]),
+      new Uint8Array(
+        DARK
+          ? [46, 46, 46, 255, 128, 128, 128, 255, 255, 255, 255, 255]
+          : [110, 110, 110, 255, 190, 190, 190, 255, 255, 255, 255, 255],
+      ),
       3,
       1,
       THREE.RGBAFormat,
@@ -72,6 +81,18 @@ function material(color: string, kind: "toon" | "glow" | "flat") {
       kind === "toon"
         ? new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() })
         : new THREE.MeshBasicMaterial({ color });
+    if (kind === "toon" && DARK) {
+      // Moonlight catching the edges that turn away from the eye.
+      m.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <opaque_fragment>",
+          `float edge = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 2.6);
+           outgoingLight += vec3(0.32, 0.62, 0.95) * smoothstep(0.35, 0.8, edge) * 0.7;
+           #include <opaque_fragment>`,
+        );
+      };
+      m.customProgramCacheKey = () => "toon-rim";
+    }
     if (kind === "glow") {
       const glow = m as THREE.MeshBasicMaterial;
       glows.push([glow, glow.color.clone()]);
@@ -208,6 +229,15 @@ function leaf(length: number, width: number, n = 10): [number, number][] {
 }
 
 type Build = (k: Kit, c: [string, string, string], stage: number) => void;
+
+
+/**
+ * A spike of fur or a blade of mane: a leaf standing in the plane that runs
+ * front to back, rising from `p` and swept back by `sweep` (0 is straight up).
+ */
+function blade(k: Kit, color: string, p: V3, length: number, width: number, sweep: number, opt: Opt = {}) {
+  return k.add(flat(leaf(length, width), 0.03), color, { p, r: [Math.PI / 2 - sweep, Math.PI / 2, 0], o: false, ...opt });
+}
 
 // The twelve forms
 
@@ -697,6 +727,46 @@ export function buildSpirit(def: SpiritDef, stage = 0, silhouette = false): Mode
   const scale = form.scale[stage] ?? form.scale[0];
   kit.root.scale.setScalar(scale);
   return { root: kit.root, rig: kit.rig, height: form.height * scale };
+}
+
+/** The clock the painted figures sway to; the stage keeps it running. */
+export const cardTime = { value: 0 };
+const cardTextures = new Map<string, THREE.Texture>();
+/**
+ * A figure from a painting, cut out and stood on the stage facing the eye.
+ * Its hair and cloth drift a little, more the further they are from its core.
+ */
+/** `lift` raises a spirit that floats off the ground. */
+export function buildCard(url: string, aspect: number, height: number, flip = false, lift = 0): Model {
+  let map = cardTextures.get(url);
+  if (!map) {
+    map = new THREE.TextureLoader().load(url);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 4;
+    cardTextures.set(url, map);
+  }
+  const geo = new THREE.PlaneGeometry(height * aspect, height, 14, 20);
+  geo.translate(0, height / 2 + lift, 0);
+  const material = new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.02, side: THREE.DoubleSide });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.cardTime = cardTime;
+    shader.vertexShader =
+      "uniform float cardTime;\n" +
+      shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+         float away = smoothstep(0.12, 0.5, abs(uv.x - 0.5));
+         float sway = sin(cardTime * 1.3 + uv.y * 5.0 + uv.x * 3.0) + 0.5 * sin(cardTime * 2.1 + uv.y * 9.0);
+         transformed.x += sway * away * 0.022 * smoothstep(0.0, 0.25, uv.y);
+         transformed.y += sin(cardTime * 1.1) * 0.006 * uv.y;`,
+      );
+  };
+  material.customProgramCacheKey = () => "card";
+  const root = new THREE.Group();
+  const mesh = new THREE.Mesh(geo, material);
+  if (flip) mesh.scale.x = -1;
+  root.add(mesh);
+  return { root, rig: { wings: [], tails: [], orbit: [], hover: 0 }, height, flat: true };
 }
 
 export const ROBES: Record<string, [string, string]> = {
