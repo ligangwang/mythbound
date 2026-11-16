@@ -335,7 +335,7 @@ const PAINTED: Record<string, [string, number, number, number?]> = {
   lanternwisp: [lanternlord, 749 / 1100, 2.2, 0.7],
   inkmonkey: [scrollsage, 742 / 1100, 2.6],
   bellmoth: [bellqueen, 933 / 1100, 2.5, 0.6],
-  warden: [wardenArt, 876 / 1100, 3],
+  warden: [wardenArt, 1074 / 1100, 3],
 };
 const BINDER_ART: [string, number] =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("binder") === "m"
