@@ -356,6 +356,11 @@ export class World {
     this.rim.position.set(-4, 3, -6);
     this.scene.add(this.key, this.rim);
     try {
+      // The glow is drawn into half-float targets. A device that can't render
+      // to them fails silently while drawing, so it is asked first.
+      const ext = this.renderer.extensions;
+      if (!ext.has("EXT_color_buffer_float") && !ext.has("EXT_color_buffer_half_float"))
+        throw new Error("no float targets");
       const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
       const composer = new EffectComposer(this.renderer, target);
       composer.addPass(new RenderPass(this.scene, this.camera));
