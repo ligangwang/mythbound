@@ -787,7 +787,7 @@ export class World {
     this.main = !id
       ? null
       : art
-        ? this.actor(buildCard(art[0], art[1], art[2], false, art[3]), tall ? new THREE.Vector3(0.7, 0, 0) : MAIN, 0, 1, spirit(id).element)
+        ? this.actor(buildCard(art[0], art[1], art[2], false, art[3]), tall ? new THREE.Vector3(0.7, 0, 0) : new THREE.Vector3(1.5, 0, -0.2), 0, 1, spirit(id).element)
         : this.actor(
             buildSpirit(spirit(id), stage),
             tall ? new THREE.Vector3(0.7, 0, 0) : MAIN,
@@ -804,7 +804,7 @@ export class World {
     this.ally = !id
       ? null
       : art
-        ? this.actor(buildCard(art[0], art[1], art[2] * 0.72, true, (art[3] ?? 0) * 0.72), new THREE.Vector3(-0.75, 0, 1.3), 0, 1, spirit(id).element)
+        ? this.actor(buildCard(art[0], art[1], art[2] * 0.6, true, (art[3] ?? 0) * 0.6), new THREE.Vector3(-0.95, 0, 1.7), 0, 1, spirit(id).element)
         : this.actor(buildSpirit(spirit(id), stage), ALLY, 0.7, 0.75, spirit(id).element);
   }
   /** Spirits gathered around the binder on the home screen. */
@@ -814,16 +814,23 @@ export class World {
     const spots =
       this.camera.aspect < 0.9
         ? [[0.35, 0.8], [1.45, -0.5], [-0.6, -1.7]]
-        : [[0.25, 0.9], [1.75, 0.5], [-0.8, -1.3], [1.0, -2.3], [2.7, -1.5], [-2.3, -2.6]];
+        : DARK
+          ? // Paintings are wide, so the team stands in one row with room between.
+            [[-0.9, 1.7], [0.45, 1.0], [1.65, 0.3]]
+          : [[0.25, 0.9], [1.75, 0.5], [-0.8, -1.3], [1.0, -2.3], [2.7, -1.5], [-2.3, -2.6]];
     this.lineup = list.slice(0, spots.length).map(({ id, stage }, i) =>
-      this.actor(
+{
+      const art = painted(id, stage);
+      const at = new THREE.Vector3(spots[i][0], 0, spots[i][1]);
+      if (art) return this.actor(buildCard(art[0], art[1], art[2] * 0.52, true, (art[3] ?? 0) * 0.52), at, 0);
+      return this.actor(
         buildSpirit(spirit(id), stage),
-        new THREE.Vector3(spots[i][0], 0, spots[i][1]),
+        at,
         -0.35 + (i % 3) * 0.3,
         // The one at the back stands tall behind the front row.
         i < 2 ? 0.95 : i === 3 ? 1.15 : 0.8,
-      ),
-    );
+      );
+    });
   }
 
   /**
