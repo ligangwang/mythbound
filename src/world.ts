@@ -32,6 +32,8 @@ import lanternwispArt from "./art/lanternwisp.webp";
 import inkmonkeyArt from "./art/inkmonkey.webp";
 import bellmothArt from "./art/bellmoth.webp";
 import mosslingArt from "./art/mossling.webp";
+import moonfoxArt from "./art/moonfox.webp";
+import shadeserpentArt from "./art/shadeserpent.webp";
 import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type Place = RealmId | "home";
@@ -347,7 +349,8 @@ const PAINTED: Record<string, [young: Art | null, grown: Art | null]> = {
   bellmoth: [[bellmothArt, 1102 / 1100, 1.5, 0.7], [bellqueen, 933 / 1100, 2.5, 0.6]],
   warden: [null, [wardenArt, 1074 / 1100, 3]],
   mossling: [[mosslingArt, 685 / 1100, 1.8], [antlerelder, 1266 / 1100, 2.9]],
-  moonfox: [null, [silvermoon, 1440 / 1100, 2.6]],
+  shadeserpent: [[shadeserpentArt, 739 / 1100, 1.7], null],
+  moonfox: [[moonfoxArt, 942 / 1100, 1.7], [silvermoon, 1440 / 1100, 2.6]],
 };
 /** The painting for a spirit at this stage, or its other stage's while that one is still to come. */
 const painted = (id: string | null, stage: number): Art | undefined => {
