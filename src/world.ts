@@ -14,6 +14,7 @@ import { hash, rng } from "./engine/random";
 import { spirit, type RealmId } from "./engine/spirits";
 import binderFemale from "./art/binder-female.webp";
 import binderMale from "./art/binder-male.webp";
+import shoresArt from "./art/shores.webp";
 import stormhound from "./art/stormhound.webp";
 import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
@@ -315,6 +316,9 @@ type Actor = {
   shadow: THREE.Mesh;
 };
 
+/** Places that have a painted backdrop in the darker look: picture and its shape. */
+const BACKDROPS: Partial<Record<Place, [string, number]>> = { shores: [shoresArt, 1672 / 941], home: [shoresArt, 1672 / 941] };
+const paintings = new Map<string, THREE.Texture>();
 /** Spirits that have a painting in the darker look: picture, its shape, its height. */
 const PAINTED: Record<string, [string, number, number]> = { tidepup: [stormhound, 895 / 1100, 2.5] };
 const BINDER_ART: [string, number] =
@@ -351,6 +355,8 @@ export class World {
   private key = new THREE.DirectionalLight("#ffffff", 1.6);
   private rim = new THREE.DirectionalLight("#ffffff", 0.45);
   private weather: Weather[] = [];
+  /** The painted backdrop on show and its shape, when the place has one. */
+  private painting: [THREE.Texture, number] | null = null;
   /** The stage's own time, which a hard hit holds still for a moment. */
   private time = 0;
   private real = 0;
@@ -433,6 +439,22 @@ export class World {
       this.scene.fog.far = distance + 26;
     }
     this.camera.updateProjectionMatrix();
+    this.fitPainting();
+  }
+
+  /** Shows the middle of the painting, cropped to cover the view whatever its shape. */
+  private fitPainting() {
+    if (!this.painting) return;
+    const [map, shape] = this.painting;
+    const view = this.camera.aspect;
+    if (view > shape) {
+      map.repeat.set(1, shape / view);
+      // Keep the ground: crop from the sky.
+      map.offset.set(0, 0);
+    } else {
+      map.repeat.set(view / shape, 1);
+      map.offset.set((1 - view / shape) / 2, 0);
+    }
   }
 
   /** The colour of the binder's ink: runes, bursts and strokes. */
@@ -452,6 +474,25 @@ export class World {
     this.weather = [];
     this.key.color.set(theme.key);
     this.rim.color.set(theme.rim);
+    const art = DARK ? BACKDROPS[place] : undefined;
+    if (art) {
+      // A painting fills the view; nothing of the code-drawn land is built.
+      let map = paintings.get(art[0]);
+      if (!map) {
+        map = new THREE.TextureLoader().load(art[0]);
+        map.colorSpace = THREE.SRGBColorSpace;
+        paintings.set(art[0], map);
+      }
+      this.painting = [map, art[1]];
+      this.scene.background = map;
+      this.scene.fog = null;
+      this.fitPainting();
+      this.motes.visible = false;
+      this.addWeather("home", { ...theme, mist: "#c9b8c6" }, rng(hash(place) + 99));
+      return;
+    }
+    this.painting = null;
+    this.motes.visible = true;
     this.scene.background = new THREE.Color(theme.paper);
     this.scene.fog = new THREE.Fog(theme.paper, this.distance + 3, this.distance + 26);
     (this.motes.material as THREE.PointsMaterial).color.set(
