@@ -12,7 +12,10 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import type { Element } from "./engine/elements";
 import { hash, rng } from "./engine/random";
 import { spirit, type RealmId } from "./engine/spirits";
-import { DARK, INK, buildBinder, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
+import binderFemale from "./art/binder-female.webp";
+import binderMale from "./art/binder-male.webp";
+import stormhound from "./art/stormhound.webp";
+import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type Place = RealmId | "home";
 export type Action = "appear" | "attack" | "hurt" | "bound" | "flee" | "evolve" | "cast";
@@ -312,6 +315,12 @@ type Actor = {
   shadow: THREE.Mesh;
 };
 
+/** Spirits that have a painting in the darker look: picture, its shape, its height. */
+const PAINTED: Record<string, [string, number, number]> = { tidepup: [stormhound, 895 / 1100, 2.5] };
+const BINDER_ART: [string, number] =
+  typeof location !== "undefined" && new URLSearchParams(location.search).get("binder") === "m"
+    ? [binderMale, 634 / 1100]
+    : [binderFemale, 601 / 1100];
 const MAIN = new THREE.Vector3(0.9, 0, 0);
 const ALLY = new THREE.Vector3(-0.75, 0, 1.2);
 const BINDER = new THREE.Vector3(-1.75, 0, 0.9);
@@ -654,7 +663,10 @@ export class World {
 
   setBinder(robe: string) {
     this.drop(this.binder);
-    this.binder = this.actor(buildBinder(robe), BINDER, 0.75);
+    // The darker look stands a painted figure where the toy one stood.
+    this.binder = DARK
+      ? this.actor(buildCard(...BINDER_ART, 2.3), new THREE.Vector3(-2.2, 0, 0.5), 0)
+      : this.actor(buildBinder(robe), BINDER, 0.75);
   }
 
   private actor(model: Model, at: THREE.Vector3, turn: number, scale = 1, element?: Element): Actor {
@@ -693,21 +705,29 @@ export class World {
     this.drop(this.main);
     // A phone's stage is narrow, so a guardian stays its own size there.
     const tall = this.camera.aspect < 0.9;
-    this.main = id
-      ? this.actor(
-          buildSpirit(spirit(id), stage),
-          tall ? new THREE.Vector3(0.7, 0, 0) : MAIN,
-          -0.45,
-          big ? (tall ? 0.9 : 1.15) : 1,
-          spirit(id).element,
-        )
-      : null;
+    const art = DARK && id ? PAINTED[id] : undefined;
+    this.main = !id
+      ? null
+      : art
+        ? this.actor(buildCard(art[0], art[1], art[2]), tall ? new THREE.Vector3(0.7, 0, 0) : MAIN, 0, 1, spirit(id).element)
+        : this.actor(
+            buildSpirit(spirit(id), stage),
+            tall ? new THREE.Vector3(0.7, 0, 0) : MAIN,
+            -0.45,
+            big ? (tall ? 0.9 : 1.15) : 1,
+            spirit(id).element,
+          );
     if (this.main) this.act("appear");
   }
   /** The team spirit standing with the binder. */
   showAlly(id: string | null, stage = 0) {
     this.drop(this.ally);
-    this.ally = id ? this.actor(buildSpirit(spirit(id), stage), ALLY, 0.7, 0.75, spirit(id).element) : null;
+    const art = DARK && id ? PAINTED[id] : undefined;
+    this.ally = !id
+      ? null
+      : art
+        ? this.actor(buildCard(art[0], art[1], art[2] * 0.72, true), new THREE.Vector3(-0.75, 0, 1.3), 0, 1, spirit(id).element)
+        : this.actor(buildSpirit(spirit(id), stage), ALLY, 0.7, 0.75, spirit(id).element);
   }
   /** Spirits gathered around the binder on the home screen. */
   showLineup(list: { id: string; stage: number }[]) {
@@ -1000,6 +1020,7 @@ export class World {
     this.freeze = Math.max(0, this.freeze - dt);
     this.time += step;
     const t = this.time;
+    cardTime.value = this.real;
     for (const actor of [this.main, this.ally, this.binder, ...this.lineup])
       if (actor) this.animate(actor, t, step);
     this.motes.rotation.y = t * 0.02;

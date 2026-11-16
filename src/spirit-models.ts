@@ -825,6 +825,45 @@ export function buildSpirit(def: SpiritDef, stage = 0, silhouette = false): Mode
   return { root: kit.root, rig: kit.rig, height: form.height * scale };
 }
 
+/** The clock the painted figures sway to; the stage keeps it running. */
+export const cardTime = { value: 0 };
+const cardTextures = new Map<string, THREE.Texture>();
+/**
+ * A figure from a painting, cut out and stood on the stage facing the eye.
+ * Its hair and cloth drift a little, more the further they are from its core.
+ */
+export function buildCard(url: string, aspect: number, height: number, flip = false): Model {
+  let map = cardTextures.get(url);
+  if (!map) {
+    map = new THREE.TextureLoader().load(url);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 4;
+    cardTextures.set(url, map);
+  }
+  const geo = new THREE.PlaneGeometry(height * aspect, height, 14, 20);
+  geo.translate(0, height / 2, 0);
+  const material = new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.02, side: THREE.DoubleSide });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.cardTime = cardTime;
+    shader.vertexShader =
+      "uniform float cardTime;\n" +
+      shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+         float away = smoothstep(0.12, 0.5, abs(uv.x - 0.5));
+         float sway = sin(cardTime * 1.3 + uv.y * 5.0 + uv.x * 3.0) + 0.5 * sin(cardTime * 2.1 + uv.y * 9.0);
+         transformed.x += sway * away * 0.022 * smoothstep(0.0, 0.25, uv.y);
+         transformed.y += sin(cardTime * 1.1) * 0.006 * uv.y;`,
+      );
+  };
+  material.customProgramCacheKey = () => "card";
+  const root = new THREE.Group();
+  const mesh = new THREE.Mesh(geo, material);
+  if (flip) mesh.scale.x = -1;
+  root.add(mesh);
+  return { root, rig: { wings: [], tails: [], orbit: [], hover: 0 }, height };
+}
+
 export const ROBES: Record<string, [string, string]> = {
   "": ["#f2ead8", "#3a3a3a"],
   "robe-crimson": ["#b8322a", "#e7c47a"],
