@@ -12,7 +12,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import type { Element } from "./engine/elements";
 import { hash, rng } from "./engine/random";
 import { spirit, type RealmId } from "./engine/spirits";
-import { INK, buildBinder, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
+import { DARK, INK, buildBinder, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type Place = RealmId | "home";
 export type Action = "appear" | "attack" | "hurt" | "bound" | "flee" | "evolve" | "cast";
@@ -27,7 +27,12 @@ type Theme = {
   /** The colour of the main light and of the light from behind. */
   key: string;
   rim: string;
+  /** The colour of the mist, where it isn't the paper's. */
+  mist?: string;
 };
+/** The darker look being tried out: an ink painting of the night. */
+const NIGHT: Theme = { paper: "#27303b", ink: "#0b0e13", far: "#55687a", sun: "#dfe9f2", ground: "#3b4652", kind: "peaks", key: "#c9d8ee", rim: "#6fc4ff", mist: "#7d93a6" };
+const themeOf = (place: Place): Theme => (DARK ? { ...NIGHT, kind: THEMES[place].kind } : THEMES[place]);
 const THEMES: Record<Place, Theme> = {
   home: { paper: "#efe6d2", ink: "#2c2a28", far: "#7d8790", sun: "#c8442f", ground: "#cfc3a8", kind: "peaks", key: "#fff4e0", rim: "#ffd9c2" },
   shores: { paper: "#e9e6da", ink: "#27353f", far: "#6f8794", sun: "#c8442f", ground: "#b9c4c4", kind: "peaks", key: "#f2f8ff", rim: "#9fd0ee" },
@@ -269,7 +274,7 @@ const PaperShader = {
       // Anything brighter than the screen can show keeps its hue instead of bleaching.
       float most = max(c.r, max(c.g, c.b));
       if (most > 1.0) c.rgb /= most;
-      c.rgb += (grain(floor(vUv * vec2(1400.0, 900.0))) - 0.5) * 0.022;
+      c.rgb += (grain(floor(vUv * vec2(1400.0, 900.0))) - 0.5) * 0.03 * (0.25 + 0.75 * dot(c.rgb, vec3(0.33)));
       c.rgb = mix(c.rgb, vec3(1.0, 0.97, 0.9), flash);
       gl_FragColor = c;
     }`,
@@ -429,7 +434,8 @@ export class World {
   setPlace(place: Place) {
     if (place === this.place) return;
     this.place = place;
-    const theme = THEMES[place];
+    const theme = themeOf(place);
+    this.rim.intensity = DARK ? 1.3 : 0.45;
     for (const child of [...this.backdrop.children]) {
       this.backdrop.remove(child);
       discard(child);
@@ -524,7 +530,7 @@ export class World {
     const mist = Array.from({ length: 7 }, () => {
       const sprite = add(
         new THREE.Sprite(
-          new THREE.SpriteMaterial({ map: softDot(), color: theme.paper, transparent: true, opacity: 0.55, depthWrite: false, fog: false }),
+          new THREE.SpriteMaterial({ map: softDot(), color: theme.mist ?? theme.paper, transparent: true, opacity: theme.mist ? 0.22 : 0.55, depthWrite: false, fog: false }),
         ),
       );
       sprite.scale.set(10 + random() * 8, 1.6 + random() * 1.6, 1);

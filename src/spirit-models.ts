@@ -31,11 +31,18 @@ export type Rig = {
 };
 export type Model = { root: THREE.Group; rig: Rig; height: number };
 
+/** The darker look being tried out: open the game with ?dark in its address. */
+export const DARK = typeof location !== "undefined" && new URLSearchParams(location.search).has("dark");
+
 let gradient: THREE.DataTexture | null = null;
 function toonGradient() {
   if (!gradient) {
     gradient = new THREE.DataTexture(
-      new Uint8Array([110, 110, 110, 255, 190, 190, 190, 255, 255, 255, 255, 255]),
+      new Uint8Array(
+        DARK
+          ? [46, 46, 46, 255, 128, 128, 128, 255, 255, 255, 255, 255]
+          : [110, 110, 110, 255, 190, 190, 190, 255, 255, 255, 255, 255],
+      ),
       3,
       1,
       THREE.RGBAFormat,
@@ -72,6 +79,18 @@ function material(color: string, kind: "toon" | "glow" | "flat") {
       kind === "toon"
         ? new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() })
         : new THREE.MeshBasicMaterial({ color });
+    if (kind === "toon" && DARK) {
+      // Moonlight catching the edges that turn away from the eye.
+      m.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <opaque_fragment>",
+          `float edge = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 2.6);
+           outgoingLight += vec3(0.32, 0.62, 0.95) * smoothstep(0.35, 0.8, edge) * 0.7;
+           #include <opaque_fragment>`,
+        );
+      };
+      m.customProgramCacheKey = () => "toon-rim";
+    }
     if (kind === "glow") {
       const glow = m as THREE.MeshBasicMaterial;
       glows.push([glow, glow.color.clone()]);
@@ -208,6 +227,109 @@ function leaf(length: number, width: number, n = 10): [number, number][] {
 }
 
 type Build = (k: Kit, c: [string, string, string], stage: number) => void;
+
+
+/**
+ * A spike of fur or a blade of mane: a leaf standing in the plane that runs
+ * front to back, rising from `p` and swept back by `sweep` (0 is straight up).
+ */
+function blade(k: Kit, color: string, p: V3, length: number, width: number, sweep: number, opt: Opt = {}) {
+  return k.add(flat(leaf(length, width), 0.03), color, { p, r: [Math.PI / 2 - sweep, Math.PI / 2, 0], o: false, ...opt });
+}
+
+/** The storm wolf: lean, long-legged and maned, with a storm caught in its coat. */
+const stormwolf: Build = (k, _colors, stage) => {
+  const coat = "#46597a";
+  const dark = "#1b2434";
+  const pale = "#b4cce2";
+  const glow = "#7fd0ff";
+  const size = stage ? 1.4 : 1.1;
+  const body = k.pivot({ s: size });
+  const on = (opt: Opt = {}): Opt => ({ parent: body, ...opt });
+  // A deep chest that tucks up to a narrow waist.
+  const chest = (t: number) => Math.pow(Math.sin(Math.PI * Math.pow(t, 1.5)), 0.8);
+  k.add(tube([[0, 0.94, -0.6], [0, 0.93, -0.2], [0, 0.98, 0.22], [0, 1.1, 0.52]], 0.17, 0.38, chest), coat, on({ s: [0.82, 1, 1] }));
+  k.add(tube([[0, 0.8, 0.3], [0, 0.74, 0.0], [0, 0.82, -0.3]], 0.1, 0.2, (t) => Math.sin(Math.PI * t)), pale, on({ s: [0.6, 1, 1], o: false }));
+  // Legs with their joints: shoulder, elbow, wrist; hip, knee, hock.
+  for (const side of [-1, 1]) {
+    const x = side * 0.19;
+    const thin = (t: number) => Math.pow(t, 0.55);
+    k.add(tube([[x, 1.02, 0.4], [x * 1.1, 0.66, 0.3], [x * 1.1, 0.34, 0.4], [x * 1.1, 0.07, 0.42]], 0.15, 0.05, thin), coat, on());
+    k.add(tube([[x, 1.0, -0.5], [x * 1.15, 0.62, -0.34], [x * 1.15, 0.36, -0.64], [x * 1.15, 0.07, -0.54]], 0.2, 0.05, thin), coat, on());
+    // Shoulder and haunch.
+    k.add(sphere(0.19), coat, on({ p: [x * 1.05, 1.0, 0.4], s: [0.6, 1.25, 0.95], o: false }));
+    k.add(sphere(0.23), coat, on({ p: [x * 1.05, 0.95, -0.46], s: [0.6, 1.2, 1.1], o: false }));
+    for (const z of [0.46, -0.5]) {
+      k.add(sphere(0.085), dark, on({ p: [x * 1.12, 0.06, z], s: [1, 0.6, 1.5] }));
+      for (let c = -1; c <= 1; c++)
+        k.add(cone(0.017, 0.07, 5), "#e8f4ff", on({ p: [x * 1.12 + c * 0.045, 0.035, z + 0.13], r: [Math.PI / 2 + 0.3, 0, 0], o: false }));
+    }
+    // Lightning running down the flank.
+    k.add(tube([[side * 0.25, 1.05, 0.25], [side * 0.27, 0.92, 0.1], [side * 0.245, 0.99, -0.05], [side * 0.23, 0.9, -0.28]], 0.016, 0.004), glow, on({ glow: true }));
+    if (stage)
+      k.add(tube([[side * 0.2, 0.75, 0.33], [side * 0.225, 0.55, 0.3], [side * 0.215, 0.45, 0.35]], 0.012, 0.003), glow, on({ glow: true }));
+  }
+  // Neck and a head carried low and forward.
+  k.add(tube([[0, 1.06, 0.42], [0, 1.24, 0.66], [0, 1.36, 0.84]], 0.22, 0.13), coat, on({ s: [0.85, 1, 1] }));
+  const head = k.pivot(on({ p: [0, 1.4, 0.9], r: [0.18, 0, 0] }));
+  k.rig.head = head;
+  const at = (opt: Opt = {}): Opt => ({ parent: head, ...opt });
+  k.add(sphere(0.19), coat, at({ s: [0.9, 0.82, 1.1] }));
+  k.add(cylinder(0.045, 0.13, 0.4, 12), coat, at({ p: [0, -0.03, 0.3], r: [Math.PI / 2, 0, 0], s: [1, 1, 0.8] }));
+  k.add(cylinder(0.04, 0.085, 0.32, 10), dark, at({ p: [0, -0.125, 0.25], r: [Math.PI / 2 + 0.16, 0, 0], s: [1, 1, 0.55] }));
+  k.add(sphere(0.028), "#07090d", at({ p: [0, 0.0, 0.5], s: [1.2, 0.8, 1], o: false }));
+  for (const side of [-1, 1]) {
+    // Fangs, a heavy brow and a narrow burning eye.
+    k.add(cone(0.012, 0.06, 5), "#f4f8ff", at({ p: [side * 0.04, -0.105, 0.43], r: [Math.PI, 0, 0], o: false }));
+    k.add(sphere(0.02), glow, at({ p: [side * 0.105, 0.035, 0.15], s: [1.6, 0.4, 0.8], r: [0, side * 0.5, side * -0.45], glow: true }));
+    // Ears laid back, and fur swept off the cheeks.
+    k.add(flat(leaf(0.3, 0.08), 0.03), dark, at({ p: [side * 0.11, 0.1, -0.04], r: [Math.PI / 2 - 0.75, Math.PI / 2 - side * 0.35, 0] }));
+    for (let i = 0; i < 3; i++)
+      k.add(flat(leaf(0.22 + i * 0.05, 0.045), 0.02), coat, at({ p: [side * 0.15, -0.06 + i * 0.045, 0.0], r: [0.25 * i - 0.2, side > 0 ? 1.15 : Math.PI - 1.15, 0], o: false }));
+    if (stage) {
+      // Horns swept back over the skull, their tips alight.
+      const horn: V3[] = [[side * 0.07, 0.12, 0.0], [side * 0.13, 0.3, -0.1], [side * 0.17, 0.4, -0.32], [side * 0.14, 0.42, -0.55]];
+      k.add(tube(horn, 0.04, 0.006), "#cfdbe8", at());
+      k.add(tube([horn[2], [side * 0.155, 0.415, -0.44], horn[3]], 0.02, 0.005), glow, at({ glow: true }));
+    }
+  }
+  // A mane of fur that stands off the neck, and a ridge of it down the spine.
+  for (let row = 0; row < 3; row++)
+    for (let i = 0; i < 11; i++) {
+      const a = ((i + (row % 2) * 0.5) / 10.5 - 0.5) * 4.6;
+      const out = k.pivot(on({ p: [0, 1.2 - row * 0.03, 0.62 - row * 0.15], r: [-0.95 - row * 0.12, 0, a] }));
+      k.add(cone(0.085, 0.42 + ((i * 7 + row * 3) % 5) * 0.05, 5), (i + row) % 3 ? coat : dark, { p: [0, 0.3 - row * 0.02, 0], s: [1, 1, 0.55], o: false, parent: out });
+    }
+  for (let i = 0; i < 8; i++) {
+    const t = i / 7;
+    k.add(cone(0.06, 0.3 - t * 0.12, 4), i % 2 ? dark : coat, on({ p: [0, 1.3 - t * 0.2, 0.2 - t * 0.78], r: [-1.0 - t * 0.2, 0, 0], s: [0.6, 1, 1], o: false }));
+  }
+  // Fur on the chest.
+  for (let i = 0; i < 5; i++)
+    k.add(cone(0.07, 0.3, 4), i % 2 ? pale : coat, on({ p: [(i - 2) * 0.07, 0.86 - Math.abs(i - 2) * 0.03, 0.56], r: [Math.PI - 0.5, 0, (i - 2) * 0.12], s: [1, 1, 0.5], o: false }));
+  // The tail: brush strokes streaming behind, with storm light among them.
+  const tail = k.pivot(on({ p: [0, 0.98, -0.6] }));
+  k.rig.tails.push(tail);
+  const strands = stage ? 7 : 4;
+  for (let i = 0; i < strands; i++) {
+    const f = i / (strands - 1) - 0.5;
+    const lit = stage && i % 3 === 1;
+    k.add(
+      tube([[0, 0, 0], [f * 0.25, 0.22 + Math.abs(f) * 0.1, -0.3], [f * 0.55, 0.42 - Math.abs(f) * 0.25, -0.62], [f * 0.75, 0.3 - Math.abs(f) * 0.3, -0.95 - (i % 2) * 0.12]], lit ? 0.03 : 0.11, 0.004, (t) => Math.pow(t, 0.7)),
+      lit ? glow : i % 2 ? coat : dark,
+      { parent: tail, glow: !!lit, o: false },
+    );
+  }
+  if (stage) {
+    // Sparks that circle it.
+    const ring = k.pivot(on({ p: [0, 0.95, 0] }));
+    k.rig.orbit.push(ring);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      k.add(sphere(0.014), glow, { p: [Math.cos(a) * 0.62, Math.sin(a * 2) * 0.22, Math.sin(a) * 0.9], glow: true, parent: ring });
+    }
+  }
+};
 
 // The twelve forms
 
@@ -693,6 +815,10 @@ const FORMS: Record<Form, { build: Build; height: number; scale: [number, number
 export function buildSpirit(def: SpiritDef, stage = 0, silhouette = false): Model {
   const form = FORMS[def.form];
   const kit = new Kit(silhouette);
+  if (DARK && def.form === "hound") {
+    stormwolf(kit, def.colors, stage);
+    return { root: kit.root, rig: kit.rig, height: stage ? 2.3 : 1.8 };
+  }
   form.build(kit, def.colors, stage);
   const scale = form.scale[stage] ?? form.scale[0];
   kit.root.scale.setScalar(scale);
