@@ -15,6 +15,7 @@ import { spirit, type RealmId } from "./engine/spirits";
 import binderFemale from "./art/binder-female.webp";
 import binderMale from "./art/binder-male.webp";
 import shoresArt from "./art/shores.webp";
+import shoresTall from "./art/shores-tall.webp";
 import stormhound from "./art/stormhound.webp";
 import sunplume from "./art/sunplume.webp";
 import mountainback from "./art/mountainback.webp";
@@ -335,7 +336,9 @@ type Actor = {
 };
 
 /** Places that have a painted backdrop in the darker look: picture and its shape. */
-const BACKDROPS: Partial<Record<Place, [string, number]>> = { shores: [shoresArt, 1672 / 941], home: [shoresArt, 1672 / 941] };
+type Backdrop = { wide: [string, number]; tall?: [string, number] };
+const SHORES: Backdrop = { wide: [shoresArt, 1672 / 941], tall: [shoresTall, 941 / 1672] };
+const BACKDROPS: Partial<Record<Place, Backdrop>> = { shores: SHORES, home: SHORES };
 const paintings = new Map<string, THREE.Texture>();
 type Art = [picture: string, shape: number, height: number, lift?: number];
 /** Spirits that have a painting in the darker look, young then grown: picture, its shape, its height, how high it floats. */
@@ -393,6 +396,7 @@ export class World {
   private weather: Weather[] = [];
   /** The painted backdrop on show and its shape, when the place has one. */
   private painting: [THREE.Texture, number] | null = null;
+  private backdropArt: Backdrop | null = null;
   /** The stage's own time, which a hard hit holds still for a moment. */
   private time = 0;
   private real = 0;
@@ -468,7 +472,7 @@ export class World {
     this.camera.lookAt(-0.3, 0.95, 0);
     if (this.paper) this.paper.uniforms.edge.value = tall ? 0.35 : 0.5;
     if (wide) this.camera.setViewOffset(w, h, w * 0.2, -h * 0.02, w, h);
-    else this.camera.setViewOffset(w, h, 0, h * (tall ? 0.2 : 0.22), w, h);
+    else this.camera.setViewOffset(w, h, 0, h * (tall ? (DARK ? 0.06 : 0.2) : 0.22), w, h);
     this.distance = distance;
     if (this.scene.fog instanceof THREE.Fog) {
       this.scene.fog.near = distance + 3;
@@ -480,8 +484,18 @@ export class World {
 
   /** Shows the middle of the painting, cropped to cover the view whatever its shape. */
   private fitPainting() {
-    if (!this.painting) return;
-    const [map, shape] = this.painting;
+    const art = this.backdropArt;
+    if (!art) return;
+    // A phone held upright gets the tall painting where there is one.
+    const [url, shape] = (this.camera.aspect < 0.9 && art.tall) || art.wide;
+    let map = paintings.get(url);
+    if (!map) {
+      map = new THREE.TextureLoader().load(url);
+      map.colorSpace = THREE.SRGBColorSpace;
+      paintings.set(url, map);
+    }
+    this.painting = [map, shape];
+    this.scene.background = map;
     const view = this.camera.aspect;
     if (view > shape) {
       map.repeat.set(1, shape / view);
@@ -513,14 +527,7 @@ export class World {
     const art = DARK ? BACKDROPS[place] : undefined;
     if (art) {
       // A painting fills the view; nothing of the code-drawn land is built.
-      let map = paintings.get(art[0]);
-      if (!map) {
-        map = new THREE.TextureLoader().load(art[0]);
-        map.colorSpace = THREE.SRGBColorSpace;
-        paintings.set(art[0], map);
-      }
-      this.painting = [map, art[1]];
-      this.scene.background = map;
+      this.backdropArt = art;
       this.scene.fog = null;
       this.fitPainting();
       this.motes.visible = false;
@@ -528,6 +535,7 @@ export class World {
       return;
     }
     this.painting = null;
+    this.backdropArt = null;
     this.motes.visible = true;
     this.scene.background = new THREE.Color(theme.paper);
     this.scene.fog = new THREE.Fog(theme.paper, this.distance + 3, this.distance + 26);
