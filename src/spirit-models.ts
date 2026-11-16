@@ -29,7 +29,7 @@ export type Rig = {
   /** How high it floats above the ground (0 for walkers). */
   hover: number;
 };
-export type Model = { root: THREE.Group; rig: Rig; height: number };
+export type Model = { root: THREE.Group; rig: Rig; height: number; flat?: boolean };
 
 /** The darker look being tried out: open the game with ?dark in its address. */
 export const DARK = typeof location !== "undefined" && new URLSearchParams(location.search).has("dark");
@@ -861,7 +861,7 @@ export function buildCard(url: string, aspect: number, height: number, flip = fa
   const mesh = new THREE.Mesh(geo, material);
   if (flip) mesh.scale.x = -1;
   root.add(mesh);
-  return { root, rig: { wings: [], tails: [], orbit: [], hover: 0 }, height };
+  return { root, rig: { wings: [], tails: [], orbit: [], hover: 0 }, height, flat: true };
 }
 
 export const ROBES: Record<string, [string, string]> = {

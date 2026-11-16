@@ -786,7 +786,8 @@ export class World {
     const quiet = this.calm ? 0.3 : 1;
     this.shake = (strong ? 0.5 : 0.3) * quiet;
     this.punch = strong ? 1 : 0.55;
-    this.flash = (strong ? 0.3 : 0.14) * quiet;
+    // A pale flash over a night stage would wash it out.
+    this.flash = (strong ? 0.3 : 0.14) * quiet * (DARK ? 0.35 : 1);
     this.freeze = strong ? 0.11 : 0.06;
     const group = new THREE.Group();
     const middle = actor.model.height * actor.scale * 0.5 + actor.model.rig.hover;
@@ -1001,6 +1002,8 @@ export class World {
     root.position.set(x, y, z);
     root.rotation.y = turn;
     root.rotation.z = lean;
+    // A painted figure is flat, so it squashes and stretches only a little.
+    if (model.flat) stretch = 1 + (stretch - 1) * 0.3;
     const wide = Math.max(0.001, scale / Math.sqrt(stretch));
     root.scale.set(wide, Math.max(0.001, scale * stretch), wide);
     // The shadow stays on the ground, smaller and fainter under a leap.
