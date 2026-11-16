@@ -339,6 +339,17 @@ button:disabled {
   height: 100%;
   display: block;
 }
+/* A painted spirit: the whole figure, with a little air round it. */
+.portrait.art img {
+  object-fit: contain;
+  padding: 7%;
+  box-sizing: border-box;
+}
+/* One not met yet shows only its shape. */
+.portrait.shade img {
+  filter: brightness(0);
+  opacity: 0.42;
+}
 .portrait.hidden img {
   opacity: 0.55;
   filter: blur(0.6px);
@@ -851,4 +862,42 @@ button:disabled {
   .mini-board {
     width: min(100%, 56vh, 380px);
   }
+}
+
+/* Girl or boy binder */
+.binders {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 10px;
+  font-size: 0.9rem;
+}
+.binders > span {
+  margin-right: auto;
+}
+.binder-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px 3px 3px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #fffaf0;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  opacity: 0.6;
+}
+.binder-pick.on {
+  opacity: 1;
+  background: #f3e2b8;
+  box-shadow: 0 2px 0 var(--ink);
+}
+.binder-pick img {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 6%;
+  background: radial-gradient(circle at 50% 55%, #fffaf0 30%, #e6dcc4 72%);
 }

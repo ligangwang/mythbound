@@ -1,13 +1,13 @@
 {
   "id": "mythbound",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "title": {
     "en": "Mythbound",
     "zh": "灵契藏鉴"
   },
   "description": {
-    "en": "An ink-wash adventure: explore three mythic realms, bind spirits by drawing talismans, tapping to the rhythm and linking seals, fill your codex, raise and evolve your team, and face each realm's guardian.",
-    "zh": "水墨风冒险：探索三个神话秘境，画符、踩节奏、连封印与灵兽结契，填满你的藏鉴，培养并进化队伍，挑战每个秘境的守护灵。"
+    "en": "A painted xianxia adventure: explore three mythic realms, bind spirits by drawing talismans, tapping to the rhythm and linking seals, fill your codex, raise and evolve your team, and face each realm's guardian.",
+    "zh": "仙侠画卷冒险：探索三个神话秘境，画符、踩节奏、连封印与灵兽结契，填满你的藏鉴，培养并进化队伍，挑战每个秘境的守护灵。"
   },
   "category": "adventure",
   "cover": "cover.jpg",

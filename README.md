@@ -1,6 +1,6 @@
 # Mythbound (灵契藏鉴)
 
-An ink-wash creature-collection adventure for [dingn](https://dingn.com).
+A painted xianxia creature-collection adventure for [dingn](https://dingn.com).
 You are a young binder with an empty codex: explore three mythic realms, bind
 the spirits you meet, raise a team and face each realm's guardian. Play it at
 <https://dingn.com/play/mythbound/>.
@@ -69,7 +69,8 @@ To play it inside dingn while developing, open the
 - `src/engine/capture.ts`: the rules of the three binding mini-games.
 - `src/spirit-models.ts`: every spirit and the binder as three.js shapes with
   toon shading and an ink outline.
-- `src/world.ts`: the 3D stage: painted ink-wash backdrops, animation, the
+- `src/art.ts`: the paintings of the binder, spirits and places.
+- `src/world.ts`: the 3D stage: painted backdrops and figures, animation, the
   rune burst and the codex portraits.
 - `src/game.tsx`, `src/minigames.tsx`: the screens and the mini-games.
 - `src/save.ts`, `src/shop.ts`: saving (on the device with `sdk.storage`, and

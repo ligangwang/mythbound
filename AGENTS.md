@@ -23,9 +23,16 @@ Notes for AI coding agents working on Mythbound (灵契藏鉴).
 - Mythbound is an original game: every spirit, name, story and design is our
   own. Don't copy names, characters, plots or looks from shows, books or
   other games.
-- Every spirit and the binder are built in code from three.js shapes
-  (`src/spirit-models.ts`). The game ships no model files; keep it that way.
-- The only third-party asset is the brush font, Ma Shan Zheng (SIL Open Font
+- The binder, every spirit and every place is a painting (`src/art/*.webp`,
+  listed in `src/art.ts`). Each picture is generated from our own prompts
+  and we cut the figure off its grey ground: `art-src/add.sh <picture> <name>`
+  for a figure (`HOLES=1` when it encloses bare ground, like a halo or a
+  coil), `art-src/backdrop.sh <picture> <name>` for a place. A place needs a
+  wide picture and a tall one for phones. Keep the originals in `art-src/`.
+- `?classic` shows the older look, built in code from three.js shapes
+  (`src/spirit-models.ts`). Keep it working; it is the fallback for a spirit
+  with no painting yet.
+- The only third-party asset besides the generated pictures is the brush font, Ma Shan Zheng (SIL Open Font
   License), cut down to the characters the game shows. After adding Chinese
   text, rebuild it with `node scripts/brush-font.mjs <MaShanZheng-Regular.ttf>`.
 - `game.json`'s `shop`: ids start with `talisman-`, `ink-`, `robe-` or
