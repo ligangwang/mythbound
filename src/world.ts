@@ -23,6 +23,7 @@ import lanternlord from "./art/lanternlord.webp";
 import scrollsage from "./art/scrollsage.webp";
 import bellqueen from "./art/bellqueen.webp";
 import wardenArt from "./art/warden.webp";
+import antlerelder from "./art/antlerelder.webp";
 import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type Place = RealmId | "home";
@@ -336,6 +337,7 @@ const PAINTED: Record<string, [string, number, number, number?]> = {
   inkmonkey: [scrollsage, 742 / 1100, 2.6],
   bellmoth: [bellqueen, 933 / 1100, 2.5, 0.6],
   warden: [wardenArt, 1074 / 1100, 3],
+  mossling: [antlerelder, 1266 / 1100, 2.9],
 };
 const BINDER_ART: [string, number] =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("binder") === "m"
