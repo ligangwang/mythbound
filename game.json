@@ -1,0 +1,214 @@
+{
+  "id": "mythbound",
+  "version": "1.0.0",
+  "title": {
+    "en": "Mythbound",
+    "zh": "灵契藏鉴"
+  },
+  "description": {
+    "en": "An ink-wash adventure: explore three mythic realms, bind spirits by drawing talismans, tapping to the rhythm and linking seals, fill your codex, raise and evolve your team, and face each realm's guardian.",
+    "zh": "水墨风冒险：探索三个神话秘境，画符、踩节奏、连封印与灵兽结契，填满你的藏鉴，培养并进化队伍，挑战每个秘境的守护灵。"
+  },
+  "category": "adventure",
+  "cover": "cover.jpg",
+  "entry": "index.html",
+  "badges": [
+    {
+      "id": "first-bond",
+      "tier": "bronze",
+      "icon": "heart",
+      "title": {
+        "en": "Bind your first spirit",
+        "zh": "结下第一份灵契"
+      }
+    },
+    {
+      "id": "spirits-3",
+      "tier": "bronze",
+      "level": 3,
+      "title": {
+        "en": "Fill 3 pages of the codex",
+        "zh": "藏鉴收录 3 只灵兽"
+      }
+    },
+    {
+      "id": "spirits-6",
+      "tier": "silver",
+      "level": 6,
+      "title": {
+        "en": "Fill 6 pages of the codex",
+        "zh": "藏鉴收录 6 只灵兽"
+      }
+    },
+    {
+      "id": "spirits-9",
+      "tier": "gold",
+      "level": 9,
+      "title": {
+        "en": "Fill 9 pages of the codex",
+        "zh": "藏鉴收录 9 只灵兽"
+      }
+    },
+    {
+      "id": "spirits-12",
+      "tier": "diamond",
+      "level": 12,
+      "title": {
+        "en": "Complete the codex",
+        "zh": "集齐整部藏鉴"
+      }
+    },
+    {
+      "id": "guardian-shores",
+      "tier": "bronze",
+      "icon": "boss",
+      "title": {
+        "en": "Calm the Abyssal Tidewhale",
+        "zh": "平息沧溟鲸"
+      }
+    },
+    {
+      "id": "guardian-city",
+      "tier": "silver",
+      "icon": "boss",
+      "title": {
+        "en": "Pass the Vermilion Warden",
+        "zh": "通过朱门守灵的考验"
+      }
+    },
+    {
+      "id": "guardian-wood",
+      "tier": "gold",
+      "icon": "boss",
+      "title": {
+        "en": "Wake the Elderwood Dragon",
+        "zh": "唤醒青木龙"
+      }
+    },
+    {
+      "id": "evolved",
+      "tier": "bronze",
+      "icon": "bolt",
+      "title": {
+        "en": "Evolve a spirit",
+        "zh": "让一只灵兽进化"
+      }
+    },
+    {
+      "id": "perfect",
+      "tier": "silver",
+      "icon": "star",
+      "title": {
+        "en": "Make a perfect binding",
+        "zh": "完成一次完美结契"
+      }
+    },
+    {
+      "id": "legend",
+      "tier": "gold",
+      "icon": "crown",
+      "title": {
+        "en": "Bind a legendary spirit",
+        "zh": "与传说灵兽结契"
+      }
+    }
+  ],
+  "shop": [
+    {
+      "id": "talisman-steady",
+      "price": 120,
+      "title": {
+        "en": "Steady Hand talisman: bindings forgive more",
+        "zh": "稳手符：结契更容易成功"
+      }
+    },
+    {
+      "id": "talisman-jade",
+      "price": 150,
+      "title": {
+        "en": "Jade Finder talisman: +50% spirit jade",
+        "zh": "寻玉符：灵玉 +50%"
+      }
+    },
+    {
+      "id": "talisman-wisdom",
+      "price": 200,
+      "title": {
+        "en": "Wisdom talisman: +25% spirit XP",
+        "zh": "启慧符：灵兽经验 +25%"
+      }
+    },
+    {
+      "id": "ink-gold",
+      "price": 180,
+      "title": {
+        "en": "Golden ink for your brush",
+        "zh": "金墨笔迹"
+      }
+    },
+    {
+      "id": "ink-azure",
+      "price": 100,
+      "title": {
+        "en": "Azure ink for your brush",
+        "zh": "青蓝墨笔迹"
+      }
+    },
+    {
+      "id": "robe-crimson",
+      "price": 150,
+      "title": {
+        "en": "Crimson binder's robe",
+        "zh": "朱红契师袍"
+      }
+    },
+    {
+      "id": "robe-azure",
+      "price": 150,
+      "title": {
+        "en": "Azure binder's robe",
+        "zh": "天青契师袍"
+      }
+    },
+    {
+      "id": "robe-jade",
+      "price": 150,
+      "title": {
+        "en": "Jade binder's robe",
+        "zh": "翠玉契师袍"
+      }
+    },
+    {
+      "id": "call-shellsage",
+      "price": 250,
+      "title": {
+        "en": "Summoning charm: Shellsage joins you",
+        "zh": "召灵符：壳翁前来结契"
+      }
+    },
+    {
+      "id": "call-bellmoth",
+      "price": 300,
+      "title": {
+        "en": "Summoning charm: Bellmoth joins you",
+        "zh": "召灵符：钟蛾前来结契"
+      }
+    },
+    {
+      "id": "call-moonfox",
+      "price": 300,
+      "title": {
+        "en": "Summoning charm: Moonfox joins you",
+        "zh": "召灵符：月狐前来结契"
+      }
+    },
+    {
+      "id": "call-shadeserpent",
+      "price": 300,
+      "title": {
+        "en": "Summoning charm: Shadeserpent joins you",
+        "zh": "召灵符：影蛇前来结契"
+      }
+    }
+  ]
+}
