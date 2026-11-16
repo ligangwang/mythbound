@@ -17,6 +17,11 @@ import binderMale from "./art/binder-male.webp";
 import shoresArt from "./art/shores.webp";
 import shoresTall from "./art/shores-tall.webp";
 import homeArt from "./art/home.webp";
+import homeTall from "./art/home-tall.webp";
+import cityArt from "./art/city.webp";
+import cityTall from "./art/city-tall.webp";
+import woodArt from "./art/wood.webp";
+import woodTall from "./art/wood-tall.webp";
 import stormhound from "./art/stormhound.webp";
 import sunplume from "./art/sunplume.webp";
 import mountainback from "./art/mountainback.webp";
@@ -341,8 +346,9 @@ type Backdrop = { wide: [string, number]; tall?: [string, number] };
 const SHORES: Backdrop = { wide: [shoresArt, 1672 / 941], tall: [shoresTall, 941 / 1672] };
 const BACKDROPS: Partial<Record<Place, Backdrop>> = {
   shores: SHORES,
-  // Until the courtyard has a tall painting, a phone shows the shore.
-  home: { wide: [homeArt, 1672 / 941], tall: SHORES.tall },
+  home: { wide: [homeArt, 1672 / 941], tall: [homeTall, 941 / 1672] },
+  city: { wide: [cityArt, 1672 / 941], tall: [cityTall, 941 / 1672] },
+  wood: { wide: [woodArt, 1672 / 941], tall: [woodTall, 941 / 1672] },
 };
 const paintings = new Map<string, THREE.Texture>();
 type Art = [picture: string, shape: number, height: number, lift?: number];
@@ -536,7 +542,8 @@ export class World {
       this.scene.fog = null;
       this.fitPainting();
       this.motes.visible = false;
-      this.addWeather("home", { ...theme, mist: "#c9b8c6" }, rng(hash(place) + 99));
+      // Petals fall wherever the paintings have blossom; the wood keeps its fireflies and leaves.
+      this.addWeather(place === "wood" ? "wood" : "home", { ...theme, mist: place === "wood" ? "#b9d6c0" : "#c9b8c6" }, rng(hash(place) + 99));
       return;
     }
     this.painting = null;
@@ -713,7 +720,8 @@ export class World {
     }
     if (place === "wood") {
       // Shafts of light through the canopy.
-      const rays = Array.from({ length: 5 }, (_, i) => {
+      // A painting has its own, so none are drawn over it.
+      const rays = Array.from({ length: this.backdropArt ? 0 : 5 }, (_, i) => {
         const ray = add(
           new THREE.Mesh(
             new THREE.PlaneGeometry(1.2 + random() * 1.6, 13),
