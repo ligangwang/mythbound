@@ -464,7 +464,12 @@ export class World {
 
   setPlace(place: Place) {
     if (place === this.place) return;
+    const arriving = this.place !== null;
     this.place = place;
+    // Arriving somewhere new, the binder and the team walk in.
+    if (arriving)
+      for (const who of [this.binder, this.ally, ...this.lineup])
+        this.enter(who, who === this.binder ? 0 : 0.15);
     const theme = themeOf(place);
     this.rim.intensity = DARK ? 1.3 : 0.45;
     for (const child of [...this.backdrop.children]) {
@@ -766,6 +771,13 @@ export class World {
       : art
         ? this.actor(buildCard(art[0], art[1], art[2] * 0.6, true, (art[3] ?? 0) * 0.6), new THREE.Vector3(-0.95, 0, 1.7), 0, 1, spirit(id).element)
         : this.actor(buildSpirit(spirit(id), stage), ALLY, 0.7, 0.75, spirit(id).element);
+    this.enter(this.ally);
+  }
+  /** A painted figure walks on when it joins the stage. */
+  private enter(actor: Actor | null, wait = 0) {
+    if (!actor?.model.flat) return;
+    actor.action = "appear";
+    actor.started = this.time + wait;
   }
   /** Spirits gathered around the binder on the home screen. */
   showLineup(list: { id: string; stage: number }[]) {
@@ -791,6 +803,7 @@ export class World {
         i < 2 ? 0.95 : i === 3 ? 1.15 : 0.8,
       );
     });
+    this.lineup.forEach((a, i) => this.enter(a, i * 0.12));
   }
 
   /**
@@ -946,7 +959,9 @@ export class World {
     let turn = actor.turn;
     // Breathing; a windup squashes it and a lunge stretches it.
     let stretch = 1 + Math.sin(p * 0.9) * 0.018;
-    let lean = 0;
+    // A painted figure shifts its weight from foot to foot.
+    let lean = model.flat ? Math.sin(p * 0.35) * 0.012 : 0;
+    if (model.flat) x += Math.sin(p * 0.35) * 0.03;
     let reach = 0;
     const flap = rig.hover ? 0.5 : 0.12;
     for (const wing of rig.wings)
@@ -963,6 +978,19 @@ export class World {
       const toward = actor === this.ally ? 1 : -1;
       switch (actor.action) {
         case "appear": {
+          if (model.flat) {
+            // A painted figure comes in from its side of the stage: walkers step, floaters swoop.
+            const k = Math.max(0, Math.min(1, a / 1.1));
+            const far = (1 - k) * (1 - k);
+            x += (actor === this.main ? 1 : -1) * far * 5.5;
+            if (rig.hover || model.lift) y += far * 0.9 + Math.sin(k * Math.PI) * 0.12;
+            else {
+              y += Math.abs(Math.sin(a * 10)) * 0.09 * (1 - k);
+              lean = Math.sin(a * 10) * 0.035 * (1 - k);
+            }
+            if (k >= 1) actor.action = null;
+            break;
+          }
           const k = Math.min(1, a / 0.5);
           scale *= 1 + Math.sin(k * Math.PI) * 0.15 - (1 - k) * 0.9;
           if (k >= 1) actor.action = null;
@@ -1017,7 +1045,9 @@ export class World {
         case "bound": {
           // Spins and shrinks into the codex.
           const k = Math.min(1, a / 1.1);
-          turn += k * k * 14;
+          // A card has no back to show, so a painted spirit rises and shrinks without the spin.
+          if (!model.flat) turn += k * k * 14;
+          else lean = Math.sin(a * 16) * 0.06 * (1 - k);
           scale *= Math.max(0.001, 1 - k * k);
           y += k * 1.2;
           if (k >= 1) {
@@ -1027,9 +1057,10 @@ export class World {
           break;
         }
         case "flee": {
-          const k = Math.min(1, a / 0.8);
+          const k = Math.min(1, a / (model.flat ? 1.1 : 0.8));
           x += k * k * 7;
-          y += Math.sin(k * Math.PI) * 0.8;
+          // A painted walker bounds away in three hops.
+          y += model.flat && !model.lift ? Math.abs(Math.sin(k * Math.PI * 3)) * 0.35 : Math.sin(k * Math.PI) * 0.8;
           if (k >= 1) {
             root.visible = false;
             actor.action = null;
@@ -1038,7 +1069,7 @@ export class World {
         }
         case "evolve": {
           const k = Math.min(1, a / 1);
-          turn += k * Math.PI * 4;
+          if (!model.flat) turn += k * Math.PI * 4;
           scale *= 1 + Math.sin(k * Math.PI) * 0.3;
           y += Math.sin(k * Math.PI) * 0.5;
           if (k >= 1) actor.action = null;

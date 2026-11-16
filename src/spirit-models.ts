@@ -31,7 +31,7 @@ export type Rig = {
   /** How high it floats above the ground (0 for walkers). */
   hover: number;
 };
-export type Model = { root: THREE.Group; rig: Rig; height: number; flat?: boolean };
+export type Model = { root: THREE.Group; rig: Rig; height: number; flat?: boolean; /** A painted figure that floats. */ lift?: number };
 
 /** The painted look wants dusk lighting and deeper toon tones behind its figures. */
 export const DARK = PAINTED;
@@ -766,7 +766,7 @@ export function buildCard(url: string, aspect: number, height: number, flip = fa
   const mesh = new THREE.Mesh(geo, material);
   if (flip) mesh.scale.x = -1;
   root.add(mesh);
-  return { root, rig: { wings: [], tails: [], orbit: [], hover: 0 }, height, flat: true };
+  return { root, rig: { wings: [], tails: [], orbit: [], hover: 0 }, height, flat: true, lift };
 }
 
 export const ROBES: Record<string, [string, string]> = {
