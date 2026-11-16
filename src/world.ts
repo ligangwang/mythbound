@@ -16,6 +16,7 @@ import binderFemale from "./art/binder-female.webp";
 import binderMale from "./art/binder-male.webp";
 import shoresArt from "./art/shores.webp";
 import stormhound from "./art/stormhound.webp";
+import sunplume from "./art/sunplume.webp";
 import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type Place = RealmId | "home";
@@ -320,7 +321,10 @@ type Actor = {
 const BACKDROPS: Partial<Record<Place, [string, number]>> = { shores: [shoresArt, 1672 / 941], home: [shoresArt, 1672 / 941] };
 const paintings = new Map<string, THREE.Texture>();
 /** Spirits that have a painting in the darker look: picture, its shape, its height. */
-const PAINTED: Record<string, [string, number, number]> = { tidepup: [stormhound, 895 / 1100, 2.5] };
+const PAINTED: Record<string, [string, number, number]> = {
+  tidepup: [stormhound, 895 / 1100, 2.5],
+  emberwing: [sunplume, 722 / 1100, 2.9],
+};
 const BINDER_ART: [string, number] =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("binder") === "m"
     ? [binderMale, 634 / 1100]
