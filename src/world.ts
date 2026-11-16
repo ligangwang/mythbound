@@ -16,6 +16,7 @@ import binderFemale from "./art/binder-female.webp";
 import binderMale from "./art/binder-male.webp";
 import shoresArt from "./art/shores.webp";
 import shoresTall from "./art/shores-tall.webp";
+import homeArt from "./art/home.webp";
 import stormhound from "./art/stormhound.webp";
 import sunplume from "./art/sunplume.webp";
 import mountainback from "./art/mountainback.webp";
@@ -338,7 +339,11 @@ type Actor = {
 /** Places that have a painted backdrop in the darker look: picture and its shape. */
 type Backdrop = { wide: [string, number]; tall?: [string, number] };
 const SHORES: Backdrop = { wide: [shoresArt, 1672 / 941], tall: [shoresTall, 941 / 1672] };
-const BACKDROPS: Partial<Record<Place, Backdrop>> = { shores: SHORES, home: SHORES };
+const BACKDROPS: Partial<Record<Place, Backdrop>> = {
+  shores: SHORES,
+  // Until the courtyard has a tall painting, a phone shows the shore.
+  home: { wide: [homeArt, 1672 / 941], tall: SHORES.tall },
+};
 const paintings = new Map<string, THREE.Texture>();
 type Art = [picture: string, shape: number, height: number, lift?: number];
 /** Spirits that have a painting in the darker look, young then grown: picture, its shape, its height, how high it floats. */
