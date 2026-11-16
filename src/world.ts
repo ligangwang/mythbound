@@ -597,11 +597,12 @@ export class World {
 
     /** Small things that fall and tumble: petals and leaves. */
     const falling = (count: number, colors: string[], speed: number) => {
-      const geo = new THREE.PlaneGeometry(0.13, 0.08);
+      // Beside a painting, petals the size of a hand look pasted on.
+      const geo = this.painting ? new THREE.PlaneGeometry(0.075, 0.045) : new THREE.PlaneGeometry(0.13, 0.08);
       const mats = colors.map((color) => new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
       const bits = Array.from({ length: count }, (_, i) => {
         const bit = add(new THREE.Mesh(geo, mats[i % mats.length]));
-        bit.position.set((random() - 0.5) * 16, random() * 7, -5 + random() * 8);
+        bit.position.set((random() - 0.5) * 16, random() * 7, this.painting ? -6 + random() * 6 : -5 + random() * 8);
         bit.userData = { fall: speed * (0.6 + random() * 0.8), sway: random() * 6, spin: 1 + random() * 3 };
         return bit;
       });
@@ -835,10 +836,12 @@ export class World {
     group.position.set(actor.home.x, middle, actor.home.z + 0.3);
     const tilt = Math.random() * Math.PI * 2;
     // The ink of the stroke, then its colour laid over, bright enough to glow.
-    for (const [tint, size, turn] of [
+    // Over a painted figure the black under-stroke reads as a blot, so only the light is drawn.
+    const strokes = [
       [new THREE.Color(INK), 2.5, 0],
       [bright(color, 1.55), 2.2, 0.06],
-    ] as const) {
+    ] as const;
+    for (const [tint, size, turn] of actor.model.flat ? strokes.slice(1) : strokes) {
       const slash = new THREE.Sprite(
         new THREE.SpriteMaterial({ map: brushStroke(), color: tint, transparent: true, depthTest: false, rotation: tilt + turn }),
       );
