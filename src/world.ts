@@ -21,6 +21,7 @@ import mountainback from "./art/mountainback.webp";
 import tidewhale from "./art/tidewhale.webp";
 import lanternlord from "./art/lanternlord.webp";
 import scrollsage from "./art/scrollsage.webp";
+import bellqueen from "./art/bellqueen.webp";
 import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type Place = RealmId | "home";
@@ -332,6 +333,7 @@ const PAINTED: Record<string, [string, number, number, number?]> = {
   tidewhale: [tidewhale, 1956 / 1100, 2.3, 0.9],
   lanternwisp: [lanternlord, 749 / 1100, 2.2, 0.7],
   inkmonkey: [scrollsage, 742 / 1100, 2.6],
+  bellmoth: [bellqueen, 933 / 1100, 2.5, 0.6],
 };
 const BINDER_ART: [string, number] =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("binder") === "m"
