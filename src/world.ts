@@ -167,6 +167,21 @@ function glyphTexture(char: string, color: string) {
   return texture;
 }
 
+/**
+ * Frees a model's geometries (an outline shares its mesh's, so each is freed
+ * once). Materials are shared by every model and stay.
+ */
+function release(root: THREE.Object3D) {
+  const seen = new Set<THREE.BufferGeometry>();
+  root.traverse((child) => {
+    const geometry = (child as THREE.Mesh).geometry;
+    if (geometry && !seen.has(geometry)) {
+      seen.add(geometry);
+      geometry.dispose();
+    }
+  });
+}
+
 type Actor = {
   model: Model;
   home: THREE.Vector3;
@@ -342,7 +357,7 @@ export class World {
   }
 
   setBinder(robe: string) {
-    if (this.binder) this.actors.remove(this.binder.model.root);
+    this.drop(this.binder);
     this.binder = this.actor(buildBinder(robe), BINDER, 0.75);
   }
 
@@ -362,7 +377,9 @@ export class World {
     };
   }
   private drop(actor: Actor | null) {
-    if (actor) this.actors.remove(actor.model.root);
+    if (!actor) return;
+    this.actors.remove(actor.model.root);
+    release(actor.model.root);
   }
 
   /** The wild spirit or guardian on the stage. */
@@ -555,6 +572,12 @@ export class World {
       const k = (t - started) / life;
       if (k >= 1) {
         this.effects.remove(group);
+        release(group);
+        for (const child of group.children) {
+          const material = (child as THREE.Mesh).material as THREE.SpriteMaterial;
+          material.map?.dispose();
+          material.dispose();
+        }
         return false;
       }
       for (const child of group.children) {
@@ -618,6 +641,7 @@ export class World {
     this.renderer.setRenderTarget(null);
     this.renderer.setClearAlpha(clear);
     target.dispose();
+    release(model.root);
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext("2d");

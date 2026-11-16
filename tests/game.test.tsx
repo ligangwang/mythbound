@@ -204,3 +204,21 @@ test("Chinese players get Chinese text", async () => {
   expect(screen.getByRole("button", { name: "挑战守护灵" })).toBeTruthy();
   expect(document.body.textContent).not.toMatch(/Guardian|Explore|Spirit/);
 });
+
+test("badges earned signed out are sent once the player signs in", async () => {
+  stored.set("journey", journey());
+  const sdk = fakeSdk(false);
+  let signIn = (_: DingnGame["player"]) => {};
+  sdk.onPlayer = (listener) => {
+    signIn = listener;
+    return () => {};
+  };
+  play(sdk);
+  click(await screen.findByRole("button", { name: /Codex/ }).then(() => /Codex/));
+  click(/Emberwing/);
+  click("Train (40 jade)");
+  expect(calls.unlock).not.toHaveBeenCalled();
+  act(() => signIn({ signedIn: true, name: "Ada", avatar: "" }));
+  await waitFor(() => expect(calls.unlock).toHaveBeenCalledWith("first-bond"));
+  expect(calls.unlock).toHaveBeenCalledWith("evolved");
+});

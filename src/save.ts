@@ -50,7 +50,8 @@ export function storePrefs(sdk: DingnGame, prefs: Prefs) {
 export class Badges {
   private earned = new Set<string>();
   private sent = new Set<string>();
-  constructor(private sdk: DingnGame) {}
+  /** The current SDK: the game swaps it in when the player signs in or out. */
+  constructor(public sdk: DingnGame) {}
   async load() {
     const data = (await this.sdk.storage.get(BADGE_KEY).catch(() => null)) as {
       earned?: string[];

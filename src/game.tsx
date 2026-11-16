@@ -146,6 +146,8 @@ export function MythboundGame() {
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const [toast, setToast] = useState<{ text: string; id: number } | null>(null);
   const badges = useMemo(() => new Badges(sdk), []);
+  // The provider hands out a new SDK object when the player signs in or out.
+  badges.sdk = sdk;
   const sound = useMemo(() => new Sound(), []);
   const signedIn = sdk.player.signedIn;
 
