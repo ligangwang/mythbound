@@ -832,7 +832,8 @@ const cardTextures = new Map<string, THREE.Texture>();
  * A figure from a painting, cut out and stood on the stage facing the eye.
  * Its hair and cloth drift a little, more the further they are from its core.
  */
-export function buildCard(url: string, aspect: number, height: number, flip = false): Model {
+/** `lift` raises a spirit that floats off the ground. */
+export function buildCard(url: string, aspect: number, height: number, flip = false, lift = 0): Model {
   let map = cardTextures.get(url);
   if (!map) {
     map = new THREE.TextureLoader().load(url);
@@ -841,7 +842,7 @@ export function buildCard(url: string, aspect: number, height: number, flip = fa
     cardTextures.set(url, map);
   }
   const geo = new THREE.PlaneGeometry(height * aspect, height, 14, 20);
-  geo.translate(0, height / 2, 0);
+  geo.translate(0, height / 2 + lift, 0);
   const material = new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.02, side: THREE.DoubleSide });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.cardTime = cardTime;

@@ -17,6 +17,10 @@ import binderMale from "./art/binder-male.webp";
 import shoresArt from "./art/shores.webp";
 import stormhound from "./art/stormhound.webp";
 import sunplume from "./art/sunplume.webp";
+import mountainback from "./art/mountainback.webp";
+import tidewhale from "./art/tidewhale.webp";
+import lanternlord from "./art/lanternlord.webp";
+import scrollsage from "./art/scrollsage.webp";
 import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type Place = RealmId | "home";
@@ -320,10 +324,14 @@ type Actor = {
 /** Places that have a painted backdrop in the darker look: picture and its shape. */
 const BACKDROPS: Partial<Record<Place, [string, number]>> = { shores: [shoresArt, 1672 / 941], home: [shoresArt, 1672 / 941] };
 const paintings = new Map<string, THREE.Texture>();
-/** Spirits that have a painting in the darker look: picture, its shape, its height. */
-const PAINTED: Record<string, [string, number, number]> = {
+/** Spirits that have a painting in the darker look: picture, its shape, its height, how high it floats. */
+const PAINTED: Record<string, [string, number, number, number?]> = {
   tidepup: [stormhound, 895 / 1100, 2.5],
-  emberwing: [sunplume, 722 / 1100, 2.9],
+  emberwing: [sunplume, 721 / 1100, 2.9],
+  shellsage: [mountainback, 885 / 1100, 2.7],
+  tidewhale: [tidewhale, 1956 / 1100, 2.3, 0.9],
+  lanternwisp: [lanternlord, 749 / 1100, 2.2, 0.7],
+  inkmonkey: [scrollsage, 742 / 1100, 2.6],
 };
 const BINDER_ART: [string, number] =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("binder") === "m"
@@ -755,7 +763,7 @@ export class World {
     this.main = !id
       ? null
       : art
-        ? this.actor(buildCard(art[0], art[1], art[2]), tall ? new THREE.Vector3(0.7, 0, 0) : MAIN, 0, 1, spirit(id).element)
+        ? this.actor(buildCard(art[0], art[1], art[2], false, art[3]), tall ? new THREE.Vector3(0.7, 0, 0) : MAIN, 0, 1, spirit(id).element)
         : this.actor(
             buildSpirit(spirit(id), stage),
             tall ? new THREE.Vector3(0.7, 0, 0) : MAIN,
@@ -772,7 +780,7 @@ export class World {
     this.ally = !id
       ? null
       : art
-        ? this.actor(buildCard(art[0], art[1], art[2] * 0.72, true), new THREE.Vector3(-0.75, 0, 1.3), 0, 1, spirit(id).element)
+        ? this.actor(buildCard(art[0], art[1], art[2] * 0.72, true, (art[3] ?? 0) * 0.72), new THREE.Vector3(-0.75, 0, 1.3), 0, 1, spirit(id).element)
         : this.actor(buildSpirit(spirit(id), stage), ALLY, 0.7, 0.75, spirit(id).element);
   }
   /** Spirits gathered around the binder on the home screen. */
