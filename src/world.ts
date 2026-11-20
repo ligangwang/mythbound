@@ -5,7 +5,6 @@
  */
 import * as THREE from "three";
 import { buildCourtyard } from "./courtyard";
-import { buildAdultBinder } from "./adult-binder";
 import { gaitSpeed, isGait, loadFemaleBinder, type BinderAction } from "./female-model";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
@@ -15,8 +14,8 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import type { Element } from "./engine/elements";
 import { hash, rng } from "./engine/random";
 import { spirit, type RealmId } from "./engine/spirits";
-import { BACKDROPS, BINDERS, painted, type Backdrop, type BinderLook, type Place } from "./art";
-import { DARK, INK, buildBinder, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
+import { BACKDROPS, painted, type Backdrop, type Place } from "./art";
+import { DARK, INK, buildCard, cardTime, buildSpirit, lit, setGlow, type Model } from "./spirit-models";
 
 export type { Place };
 export type Action = "appear" | "attack" | "hurt" | "bound" | "flee" | "evolve" | "cast";
@@ -328,7 +327,6 @@ type Actor = {
 const paintings = new Map<string, THREE.Texture>();
 const MAIN = new THREE.Vector3(0.9, 0, 0);
 const ALLY = new THREE.Vector3(-0.75, 0, 1.2);
-const BINDER = new THREE.Vector3(-1.75, 0, 0.9);
 
 export class World {
   private renderer: THREE.WebGLRenderer;
@@ -342,7 +340,6 @@ export class World {
   private lineup: Actor[] = [];
   private binder: Actor | null = null;
   private binderRobe = "";
-  private binderLook: BinderLook = "f";
   private binderRequest = 0;
   private running = false;
   private movement = new THREE.Vector2();
@@ -378,7 +375,7 @@ export class World {
   private calm =
     typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(private canvas: HTMLCanvasElement, private onBinderError: (failed: boolean) => void) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.scene.add(this.backdrop, this.actors, this.effects);
@@ -427,7 +424,6 @@ export class World {
     this.scene.add(this.motes);
 
     this.setPlace("home");
-    this.setBinder("");
     this.resize();
     this.renderer.setAnimationLoop(() => this.tick());
   }
@@ -497,7 +493,7 @@ export class World {
     this.running = false;
     this.preview = null;
     this.walkBlend = 0;
-    this.setBinder(this.binderRobe, this.binderLook);
+    this.refreshBinder();
     const theme = themeOf(place);
     this.renderer.toneMapping = place === "home" ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -741,29 +737,35 @@ export class World {
     }
   }
 
-  setBinder(robe: string, look: BinderLook = "f") {
-    const request = ++this.binderRequest;
+  setBinder(robe: string) {
+    if (robe === this.binderRobe) return;
     this.binderRobe = robe;
-    this.binderLook = look;
+    this.refreshBinder();
+  }
+
+  refreshBinder() {
+    const request = ++this.binderRequest;
+    const robe = this.binderRobe;
+    this.onBinderError(false);
+    const home = this.place === "home";
+    const position = home ? new THREE.Vector3(-0.55, 0, 0.7) : new THREE.Vector3(-2.2, 0, 0.5);
+    const turn = home ? 0.18 : 0;
     this.drop(this.binder);
-    // The darker look stands a painted figure where the toy one stood.
-    this.binder = this.place === "home"
-      ? this.actor(buildAdultBinder(robe, look), new THREE.Vector3(-0.55, 0, 0.7), 0.18, 1)
-      : DARK
-      ? this.actor(buildCard(...BINDERS[look], 2.3), new THREE.Vector3(-2.2, 0, 0.5), 0)
-      : this.actor(buildBinder(robe), BINDER, 0.75);
-    if (look === "f" && (this.place === "home" || DARK)) {
-      void loadFemaleBinder(robe).then(model => {
-        if (this.disposed || request !== this.binderRequest) {
-          model.dispose?.(); release(model.root); return;
-        }
-        const position = this.binder?.home.clone() ?? new THREE.Vector3(-.55, 0, .7);
-        const turn = this.binder?.turn ?? .18;
-        this.drop(this.binder);
-        model.previewAction?.(this.preview);
-        this.binder = this.actor(model, position, turn, this.place === "home" ? 1 : 2.3 / model.height);
-      }).catch(error => console.warn("Female binder model could not load; using the procedural fallback.", error));
-    }
+    this.binder = null;
+
+    void loadFemaleBinder(robe).then(model => {
+      if (this.disposed || request !== this.binderRequest) {
+        model.dispose?.();
+        release(model.root);
+        return;
+      }
+      model.previewAction?.(this.preview);
+      this.binder = this.actor(model, position, turn, home ? 1 : 2.3 / model.height);
+    }).catch(error => {
+      if (this.disposed || request !== this.binderRequest) return;
+      console.error("Female binder model could not load.", error);
+      this.onBinderError(true);
+    });
   }
 
   get binderPose() { return this.preview; }

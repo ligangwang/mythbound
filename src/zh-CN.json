@@ -1,4 +1,6 @@
 {
+  "The character could not load.": "角色加载失败。",
+  "Retry": "重试",
   "Shift + move: run · Space: jump · C: sit / stand · L: lie / rise": "Shift + 移动：跑步 · 空格：跳跃 · C：坐下／站起 · L：躺下／起身",
   "Stand": "站立",
   "Walk": "行走",
