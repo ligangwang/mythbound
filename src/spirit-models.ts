@@ -1,3 +1,4 @@
+import type { BinderAction } from "./female-model";
 /**
  * The figures on the stage. A painted figure is a picture on a card that
  * sways (`buildCard`). The older look, kept behind `?classic`, builds every
@@ -23,6 +24,7 @@ type Opt = {
 
 /** What the scene animates on a model. */
 export type Rig = {
+  legs?: THREE.Object3D[];
   wings: THREE.Object3D[];
   tails: THREE.Object3D[];
   head?: THREE.Object3D;
@@ -31,7 +33,12 @@ export type Rig = {
   /** How high it floats above the ground (0 for walkers). */
   hover: number;
 };
-export type Model = { root: THREE.Group; rig: Rig; height: number; flat?: boolean };
+export type Model = {
+  root: THREE.Group; rig: Rig; height: number; flat?: boolean;
+  previewAction?: (name: BinderAction | null) => void;
+  update?: (dt: number, moving: boolean, running: boolean) => void;
+  dispose?: () => void;
+};
 
 /** The painted look wants dusk lighting and deeper toon tones behind its figures. */
 export const DARK = PAINTED;
@@ -777,11 +784,26 @@ export const ROBES: Record<string, [string, string]> = {
 };
 
 /** The binder: a young talisman-writer with a giant brush and the codex. */
-export function buildBinder(robe = ""): Model {
+export function buildBinder(robe = "", look: "f" | "m" = "f", walking = false): Model {
   const [cloth, trim] = ROBES[robe] ?? ROBES[""];
   const k = new Kit(false);
-  k.add(cone(0.34, 0.8, 16), cloth, { p: [0, 0.42, 0] });
-  k.add(cylinder(0.36, 0.36, 0.05, 16), trim, { p: [0, 0.05, 0], o: false });
+  k.add(cone(0.34, walking ? 0.55 : 0.8, 16), cloth, { p: [0, walking ? 0.55 : 0.42, 0] });
+  k.add(cylinder(0.34, 0.36, 0.05, 16), trim, { p: [0, walking ? 0.28 : 0.05, 0], o: false });
+  if (walking) {
+    k.rig.legs = [];
+    for (const side of [-1, 1]) {
+      const leg = k.pivot({ p: [side * 0.13, 0.43, 0] });
+      k.rig.legs.push(leg);
+      k.add(capsule(0.075, 0.2), "#d9d4c6", { p: [0, -0.18, 0], parent: leg });
+      k.add(box(0.15, 0.12, 0.27), INK, { p: [0, -0.36, 0.055], parent: leg });
+    }
+    for (const side of [-1, 1]) {
+      const ribbon = k.pivot({ p: [side * 0.14, 0.58, -0.12] });
+      k.add(box(0.09, 0.44, 0.025), trim, { p: [0, -0.2, 0], parent: ribbon });
+      k.rig.tails.push(ribbon);
+    }
+    k.add(box(0.07, 0.36, 0.035), trim, { p: [-0.055, 0.66, 0.17], r: [0, 0, -0.4], o: false });
+  }
   k.add(torus(0.2, 0.035), trim, { p: [0, 0.52, 0], r: [Math.PI / 2, 0, 0] });
   k.add(sphere(0.06), "#c8442f", { p: [0.12, 0.5, 0.17] });
   k.add(cone(0.03, 0.2, 6), "#c8442f", { p: [0.12, 0.38, 0.17], r: [Math.PI, 0, 0], o: false });
@@ -806,6 +828,12 @@ export function buildBinder(robe = ""): Model {
   k.add(sphere(0.25), "#f1cfae", { parent: head });
   k.add(new THREE.SphereGeometry(0.265, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), INK, { p: [0, 0.02, -0.03], r: [-0.35, 0, 0], o: false, parent: head });
   k.add(sphere(0.11), INK, { p: [0, 0.3, -0.06], parent: head });
+  if (walking && look === "f") {
+    const hair = k.pivot({ p: [0, 0.12, -0.18], parent: head });
+    k.add(capsule(0.09, 0.32), INK, { p: [0, -0.18, -0.04], parent: hair });
+    k.add(torus(0.09, 0.02), trim, { r: [Math.PI / 2, 0, 0], parent: hair });
+    k.rig.tails.push(hair);
+  }
   k.add(cylinder(0.012, 0.012, 0.36, 5), "#c8442f", { p: [0, 0.3, -0.06], r: [0, 0, Math.PI / 2 - 0.2], o: false, parent: head });
   k.eyes(head, -0.02, 0.22, 0.09, 0.04);
   for (const side of [-1, 1])

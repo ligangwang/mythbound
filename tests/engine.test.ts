@@ -307,8 +307,8 @@ test("every screen string has a Chinese translation", () => {
   for (const file of ["src/game.tsx", "src/minigames.tsx"])
     for (const match of readFileSync(file, "utf8").matchAll(/"((?:[A-Z+]|\{0\})[^"\n]*)"/g))
       used.add(match[1]);
-  // SVG path letters are not text.
-  for (const skip of ["L", "M"]) used.delete(skip);
+  // SVG path letters and DOM keyboard key identifiers are not UI text.
+  for (const skip of ["L", "M", "ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Enter"]) used.delete(skip);
   for (const text of used) assert.ok(catalog[text], `no Chinese for: ${text}`);
   for (const key of Object.keys(catalog)) assert.ok(used.has(key), `unused translation: ${key}`);
 });

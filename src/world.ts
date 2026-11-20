@@ -4,6 +4,9 @@
  * animations, the rune burst of a binding, and the codex portraits.
  */
 import * as THREE from "three";
+import { buildCourtyard } from "./courtyard";
+import { buildAdultBinder } from "./adult-binder";
+import { gaitSpeed, isGait, loadFemaleBinder, type BinderAction } from "./female-model";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -289,13 +292,22 @@ type Weather = (t: number, dt: number) => void;
  */
 function release(root: THREE.Object3D) {
   const seen = new Set<THREE.BufferGeometry>();
+  const owned = new Set<THREE.Material>();
   root.traverse((child) => {
     const geometry = (child as THREE.Mesh).geometry;
     if (geometry && !seen.has(geometry)) {
       seen.add(geometry);
       geometry.dispose();
     }
+    const material = (child as THREE.Mesh).material;
+    for (const m of Array.isArray(material) ? material : material ? [material] : []) {
+      if (m.userData.modelOwned) owned.add(m);
+    }
   });
+  for (const m of owned) {
+    (m as THREE.MeshStandardMaterial).bumpMap?.dispose();
+    m.dispose();
+  }
 }
 
 type Actor = {
@@ -329,6 +341,14 @@ export class World {
   private ally: Actor | null = null;
   private lineup: Actor[] = [];
   private binder: Actor | null = null;
+  private binderRobe = "";
+  private binderLook: BinderLook = "f";
+  private binderRequest = 0;
+  private running = false;
+  private movement = new THREE.Vector2();
+  private preview: BinderAction | null = null;
+  private walkBlend = 0;
+  private walkPhase = 0;
   private motes: THREE.Points;
   private bursts: { group: THREE.Group; started: number }[] = [];
   private place: Place | null = null;
@@ -342,6 +362,7 @@ export class World {
   private composer: EffectComposer | null = null;
   private paper: ShaderPass | null = null;
   private key = new THREE.DirectionalLight("#ffffff", 1.6);
+  private ambient = new THREE.HemisphereLight("#b8c9dc", "#27313b", 1.5);
   private rim = new THREE.DirectionalLight("#ffffff", 0.45);
   private weather: Weather[] = [];
   /** The painted backdrop on show and its shape, when the place has one. */
@@ -361,7 +382,13 @@ export class World {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.scene.add(this.backdrop, this.actors, this.effects);
-    this.scene.add(new THREE.HemisphereLight("#ffffff", "#b9ae98", 1.5));
+    this.scene.add(this.ambient);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.key.castShadow = true;
+    this.key.shadow.mapSize.set(1024, 1024);
+    Object.assign(this.key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: .5, far: 25 });
+    this.key.shadow.normalBias = .035;
     this.key.position.set(3, 6, 5);
     this.rim.position.set(-4, 3, -6);
     this.scene.add(this.key, this.rim);
@@ -417,12 +444,12 @@ export class World {
     // other, so the stage is slid into the part that is left.
     const wide = w >= 900 && h >= 560;
     const tall = aspect < 0.9;
-    const distance = tall ? Math.min(19, 6.7 / aspect) : 7.8;
-    this.camera.position.set(0, 1.7, distance);
+    const distance = this.place === "home" ? (wide ? 11 : Math.max(12, Math.min(23, 8 / aspect))) : tall ? Math.min(19, 6.7 / aspect) : 7.8;
+    this.camera.position.set(0, this.place === "home" ? 3.8 : 1.7, distance);
     this.camera.lookAt(-0.3, 0.95, 0);
     if (this.paper) this.paper.uniforms.edge.value = tall ? 0.35 : 0.5;
     if (wide) this.camera.setViewOffset(w, h, w * 0.2, -h * 0.02, w, h);
-    else this.camera.setViewOffset(w, h, 0, h * (tall ? (DARK ? 0.06 : 0.2) : 0.22), w, h);
+    else this.camera.setViewOffset(w, h, 0, h * (this.place === "home" ? 0.24 : tall ? (DARK ? 0.06 : 0.2) : 0.22), w, h);
     this.distance = distance;
     if (this.scene.fog instanceof THREE.Fog) {
       this.scene.fog.near = distance + 3;
@@ -465,7 +492,17 @@ export class World {
   setPlace(place: Place) {
     if (place === this.place) return;
     this.place = place;
+    this.resize();
+    this.movement.set(0, 0);
+    this.running = false;
+    this.preview = null;
+    this.walkBlend = 0;
+    this.setBinder(this.binderRobe, this.binderLook);
     const theme = themeOf(place);
+    this.renderer.toneMapping = place === "home" ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
+    this.ambient.intensity = place === "home" ? 1.15 : 1.5;
+    this.key.intensity = place === "home" ? 3.2 : 1.6;
     this.rim.intensity = DARK ? 1.3 : 0.45;
     for (const child of [...this.backdrop.children]) {
       this.backdrop.remove(child);
@@ -474,7 +511,7 @@ export class World {
     this.weather = [];
     this.key.color.set(theme.key);
     this.rim.color.set(theme.rim);
-    const art = DARK ? BACKDROPS[place] : undefined;
+    const art = DARK && place !== "home" ? BACKDROPS[place] : undefined;
     if (art) {
       // A painting fills the view; nothing of the code-drawn land is built.
       this.backdropArt = art;
@@ -490,6 +527,11 @@ export class World {
     this.motes.visible = true;
     this.scene.background = new THREE.Color(theme.paper);
     this.scene.fog = new THREE.Fog(theme.paper, this.distance + 3, this.distance + 26);
+    if (place === "home") {
+      const courtyard = buildCourtyard();
+      this.backdrop.add(courtyard.root);
+      this.weather.push(courtyard.animate);
+    }
     (this.motes.material as THREE.PointsMaterial).color.set(
       place === "wood" ? "#b8f08a" : place === "city" ? "#e0a23c" : theme.ink,
     );
@@ -700,11 +742,48 @@ export class World {
   }
 
   setBinder(robe: string, look: BinderLook = "f") {
+    const request = ++this.binderRequest;
+    this.binderRobe = robe;
+    this.binderLook = look;
     this.drop(this.binder);
     // The darker look stands a painted figure where the toy one stood.
-    this.binder = DARK
+    this.binder = this.place === "home"
+      ? this.actor(buildAdultBinder(robe, look), new THREE.Vector3(-0.55, 0, 0.7), 0.18, 1)
+      : DARK
       ? this.actor(buildCard(...BINDERS[look], 2.3), new THREE.Vector3(-2.2, 0, 0.5), 0)
       : this.actor(buildBinder(robe), BINDER, 0.75);
+    if (look === "f" && (this.place === "home" || DARK)) {
+      void loadFemaleBinder(robe).then(model => {
+        if (this.disposed || request !== this.binderRequest) {
+          model.dispose?.(); release(model.root); return;
+        }
+        const position = this.binder?.home.clone() ?? new THREE.Vector3(-.55, 0, .7);
+        const turn = this.binder?.turn ?? .18;
+        this.drop(this.binder);
+        model.previewAction?.(this.preview);
+        this.binder = this.actor(model, position, turn, this.place === "home" ? 1 : 2.3 / model.height);
+      }).catch(error => console.warn("Female binder model could not load; using the procedural fallback.", error));
+    }
+  }
+
+  get binderPose() { return this.preview; }
+
+  setRunning(running: boolean) {
+    this.running = running;
+    if (running && isGait(this.preview)) this.previewBinder(null);
+  }
+
+  previewBinder(name: BinderAction | null) {
+    if (this.place !== "home") return;
+    this.preview = name;
+    this.binder?.model.previewAction?.(name);
+  }
+
+  /** Input is owned by the opening screen, so menus never move the character. */
+  moveBinder(x: number, z: number) {
+    if ((x || z) && this.preview && !isGait(this.preview))
+      this.previewBinder(null);
+    this.movement.set(x, z).clampLength(0, 1);
   }
 
   private actor(model: Model, at: THREE.Vector3, turn: number, scale = 1, element?: Element): Actor {
@@ -734,6 +813,7 @@ export class World {
   private drop(actor: Actor | null) {
     if (!actor) return;
     this.actors.remove(actor.model.root, actor.shadow);
+    actor.model.dispose?.();
     release(actor.model.root);
     discard(actor.shadow);
   }
@@ -772,7 +852,7 @@ export class World {
     for (const a of this.lineup) this.drop(a);
     // A phone has room for the team; a wide screen for six.
     const spots =
-      this.camera.aspect < 0.9
+      this.place === "home" ? [[1.1, .3]] : this.camera.aspect < 0.9
         ? [[0.35, 0.8], [1.45, -0.5], [-0.6, -1.7]]
         : DARK
           ? // Paintings are wide, so the team stands in one row with room between.
@@ -938,6 +1018,7 @@ export class World {
   private animate(actor: Actor, t: number, dt: number) {
     const { model, home } = actor;
     const { rig, root } = model;
+    model.update?.(dt, actor === this.binder && this.place === "home" && this.movement.lengthSq() > 0, this.running);
     const p = t * 2 + actor.phase;
     let y = rig.hover ? rig.hover + Math.sin(p * 0.8) * 0.08 : Math.abs(Math.sin(p * 0.9)) * 0.03;
     let x = home.x;
@@ -957,6 +1038,39 @@ export class World {
       rig.head.rotation.x = Math.sin(p * 0.45) * 0.05;
     }
     for (const o of rig.orbit) o.rotation.y += dt * 1.2;
+    if (actor === this.binder && this.place === "home") {
+      const moving = this.movement.lengthSq() > 0;
+      this.walkBlend = THREE.MathUtils.damp(this.walkBlend, moving ? 1 : 0, 12, dt);
+      this.walkPhase += dt * 6.8 * this.walkBlend;
+      if (moving) {
+        const speed = isGait(this.preview) ? gaitSpeed[this.preview] : this.running ? gaitSpeed.Run : gaitSpeed.Walk;
+        const limit = Math.min(2.5, this.camera.aspect * this.distance * 0.3 - 0.65);
+        home.x = THREE.MathUtils.clamp(home.x + this.movement.x * dt * speed, -limit, limit);
+        home.z = THREE.MathUtils.clamp(home.z + this.movement.y * dt * speed, -0.8, 1.8);
+        const target = Math.atan2(this.movement.x, this.movement.y);
+        actor.turn += Math.atan2(Math.sin(target - actor.turn), Math.cos(target - actor.turn)) * Math.min(1, dt * 12);
+      }
+      x = home.x;
+      z = home.z;
+      turn = actor.turn;
+      y = Math.abs(Math.sin(this.walkPhase)) * 0.018 * this.walkBlend;
+      stretch = 1 + Math.sin(t * 2) * 0.008 * (1 - this.walkBlend);
+      rig.legs?.forEach((leg, i) => {
+        const stride = Math.sin(this.walkPhase + i * Math.PI);
+        leg.rotation.x = stride * 0.42 * this.walkBlend;
+        const knee = leg.userData.knee as THREE.Object3D | undefined;
+        if (knee) knee.rotation.x = Math.max(0, -stride) * .65 * this.walkBlend;
+      });
+      rig.wings.forEach((arm, i) => {
+        arm.rotation.x = Math.sin(this.walkPhase + (1 - i) * Math.PI) * 0.22 * this.walkBlend;
+        arm.rotation.z = (arm.userData.side ?? 1) * (.07 + Math.sin(t * 1.4) * .009);
+      });
+      rig.tails.forEach((tail,i) => {
+        tail.rotation.y = Math.sin(t * 1.2 + i) * .025;
+        tail.rotation.x = Math.sin(this.walkPhase + i) * .08 * this.walkBlend + Math.sin(t * 1.5 + i) * .015;
+      });
+      if(rig.head) { rig.head.rotation.z = Math.sin(t * .7) * .012; rig.head.rotation.x = Math.sin(t * .8) * .015; }
+    }
 
     if (actor.action) {
       const a = t - actor.started;
@@ -1128,7 +1242,7 @@ export class World {
     const r = this.real;
     this.camera.position.set(
       Math.sin(r * 0.13) * 0.24 * drift + (Math.sin(r * 83) + Math.sin(r * 47)) * this.shake * 0.11,
-      1.7 + Math.sin(r * 0.17) * 0.06 * drift + Math.sin(r * 61) * this.shake * 0.1,
+      (this.place === "home" ? 3.8 : 1.7) + Math.sin(r * 0.17) * 0.06 * drift + Math.sin(r * 61) * this.shake * 0.1,
       this.distance * (1 - this.punch * 0.05),
     );
     this.camera.lookAt(-0.3, 0.95, 0);
@@ -1195,6 +1309,7 @@ export class World {
   dispose() {
     this.disposed = true;
     this.renderer.setAnimationLoop(null);
+    for (const actor of [this.main, this.ally, this.binder, ...this.lineup]) this.drop(actor);
     this.composer?.dispose();
     this.renderer.dispose();
   }

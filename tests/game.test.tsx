@@ -6,7 +6,7 @@ import { DingnProvider } from "../src/dingn";
 import { traceGlyph } from "../src/engine/capture";
 import manifest from "../game.json";
 
-const mocks = vi.hoisted(() => ({ acts: [] as string[], shown: [] as (string | null)[] }));
+const mocks = vi.hoisted(() => ({ acts: [] as string[], shown: [] as (string | null)[], move: vi.fn(), running: vi.fn(), preview: vi.fn() }));
 // A stand-in for the three.js world (jsdom has no WebGL).
 vi.mock("../src/world", () => ({
   World: class {
@@ -14,6 +14,10 @@ vi.mock("../src/world", () => ({
     setInk() {}
     setPlace() {}
     setBinder() {}
+    moveBinder = mocks.move;
+    setRunning = mocks.running;
+    binderPose: string | null = null;
+    previewBinder(name: string | null) { this.binderPose = name; mocks.preview(name); }
     showSpirit(id: string | null) {
       mocks.shown.push(id);
     }
@@ -84,6 +88,7 @@ beforeEach(() => {
   owned = new Set();
   mocks.acts.length = 0;
   mocks.shown.length = 0;
+  mocks.move.mockClear();
   for (const fn of Object.values(calls)) fn.mockReset();
   calls.save.mockResolvedValue(undefined);
   calls.earn.mockImplementation(async (coins: number) => ({ coins, left: 100 }));
@@ -203,6 +208,51 @@ test("Chinese players get Chinese text", async () => {
   expect(screen.getByText("7. 守护灵之座")).toBeTruthy();
   expect(screen.getByRole("button", { name: "挑战守护灵" })).toBeTruthy();
   expect(document.body.textContent).not.toMatch(/Guardian|Explore|Spirit/);
+});
+
+test("courtyard keyboard movement stops on release, blur, and leaving home", async () => {
+  stored.set("journey", journey());
+  play(fakeSdk(false));
+  await screen.findByRole("group", { name: "Move your binder" });
+  fireEvent.keyDown(window, { key: "d" });
+  expect(mocks.move).toHaveBeenLastCalledWith(1, 0);
+  fireEvent.keyDown(window, { key: "w" });
+  expect(mocks.move).toHaveBeenLastCalledWith(1, -1);
+  fireEvent.keyUp(window, { key: "d" });
+  expect(mocks.move).toHaveBeenLastCalledWith(0, -1);
+  fireEvent.blur(window);
+  expect(mocks.move).toHaveBeenLastCalledWith(0, 0);
+  fireEvent.keyDown(window, { key: "a" });
+  click(/Codex/);
+  expect(mocks.move).toHaveBeenLastCalledWith(0, 0);
+  mocks.move.mockClear();
+  fireEvent.keyDown(window, { key: "w" });
+  expect(mocks.move).not.toHaveBeenCalled();
+});
+
+test("courtyard shortcuts run, jump, and toggle seated and lying poses", async () => {
+  play(fakeSdk(false));
+  await screen.findByRole("group", { name: "Move your binder" });
+  fireEvent.keyDown(window, { key: "Shift" });
+  expect(mocks.running).toHaveBeenLastCalledWith(true);
+  fireEvent.keyUp(window, { key: "Shift" });
+  expect(mocks.running).toHaveBeenLastCalledWith(false);
+  mocks.preview.mockClear();
+  for (const key of [" ", "c", "c", "l", "l"]) fireEvent.keyDown(window, { key });
+  fireEvent.keyDown(window, { key: "l", repeat: true });
+  expect(mocks.preview.mock.calls.flat()).toEqual(["Jump", "Sit", "Stand up", "Ground lie down", "Get up from ground"]);
+});
+
+test("courtyard direction buttons support keyboard hold and release", async () => {
+  play(fakeSdk(false));
+  const forward = await screen.findByRole("button", { name: "Walk forward" });
+  fireEvent.keyDown(forward, { key: " " });
+  expect(mocks.move).toHaveBeenLastCalledWith(0, -1);
+  fireEvent.keyUp(forward, { key: " " });
+  expect(mocks.move).toHaveBeenLastCalledWith(0, 0);
+  fireEvent.keyDown(forward, { key: "Enter" });
+  fireEvent.blur(forward);
+  expect(mocks.move).toHaveBeenLastCalledWith(0, 0);
 });
 
 test("badges earned signed out are sent once the player signs in", async () => {
