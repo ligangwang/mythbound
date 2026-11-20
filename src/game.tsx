@@ -51,8 +51,9 @@ import { MINI_GAMES, MINI_NAMES, StrikeMeter } from "./minigames";
 import { Badges, earnCoins, loadPrefs, loadSave, storePrefs, storeSave, type Prefs } from "./save";
 import { CATALOG, INKS, SHELVES, buy, calledBy, loadOwned, perksFrom, type Shelf } from "./shop";
 import { Sound, type SoundName } from "./sound";
-import { BINDERS, PAINTED, painted, type BinderLook } from "./art";
+import { PAINTED, painted } from "./art";
 import { ROBES } from "./spirit-models";
+import type { BinderAction } from "./female-model";
 import { World, type Place } from "./world";
 
 type Screen =
@@ -77,8 +78,6 @@ type Game = {
   toast: (text: string) => void;
   pick: (text: Text) => string;
   nameOf: (id: string, evolved?: boolean) => string;
-  binder: BinderLook;
-  setBinder: (look: BinderLook) => void;
 };
 
 const STOP_MARKS: Record<StopKind, string> = { wild: "灵", cache: "玉", shrine: "祠", boss: "守" };
@@ -212,7 +211,7 @@ export function MythboundGame() {
   const robe = owned.has(prefs.robe) ? prefs.robe : "";
   sound.on = prefs.sound;
   useEffect(() => world.current?.setInk(ink), [ink]);
-  useEffect(() => world.current?.setBinder(robe, prefs.binder), [robe, prefs.binder]);
+  useEffect(() => world.current?.setBinder(robe), [robe]);
 
   // Keep the 3D stage in step with the screen.
   const place: Place = "realm" in screen ? screen.realm : "home";
@@ -234,9 +233,9 @@ export function MythboundGame() {
       ? ""
       : (started(save)
           ? [...save.team, ...Object.keys(save.spirits).filter((id) => !save.team.includes(id))]
-          : STARTERS
+          : []
         )
-          .slice(0, 6)
+          .slice(0, 1)
           .map((id) => `${id}|${stageOf(spirit(id), !!save.spirits[id]?.evolved)}`)
           .join(",");
   useEffect(() => world.current?.setPlace(place), [place]);
@@ -289,13 +288,6 @@ export function MythboundGame() {
       const def = spirit(id);
       return pick(def.names[stageOf(def, evolved ?? !!save.spirits[id]?.evolved)]);
     },
-    binder: prefs.binder,
-    setBinder: (look) => {
-      sound.play("tap");
-      const next = { ...prefs, binder: look };
-      setPrefs(next);
-      storePrefs(sdk, next);
-    },
   };
   const back: Screen | null =
     screen.name === "home"
@@ -345,7 +337,7 @@ export function MythboundGame() {
           {toast.text}
         </p>
       )}
-      {screen.name === "home" && <Home game={game} />}
+      {screen.name === "home" && <><WalkControls game={game} /><Home game={game} /></>}
       {screen.name === "realm" && <RealmView game={game} id={screen.realm} />}
       {screen.name === "encounter" && (
         <Encounter key={`${screen.spirit}:${screen.attempt}`} game={game} screen={screen} />
@@ -382,27 +374,93 @@ function SignInHint() {
   );
 }
 
-const BINDER_NAMES: Record<BinderLook, string> = { f: "Girl", m: "Boy" };
-/** The binder is a girl or a boy, as the player likes; it changes nothing but the picture. */
-function BinderChoice({ game }: { game: Game }) {
+const courtyardActions = ["Stand", "Walk", "Jog", "Run", "Fast Run", "Sit", "Stand up", "Lie down",
+  "Ground lie down", "Get up from ground", "Jump", "Fight - evade and recover"] as const satisfies readonly BinderAction[];
+
+function WalkControls({ game }: { game: Game }) {
   const { t } = useLocale();
-  if (!painted("tidepup", 0)) return null;
-  return (
-    <div className="binders" role="group" aria-label={t("Your binder")}>
-      <span>{t("Your binder")}</span>
-      {(["f", "m"] as const).map((look) => (
-        <button
-          key={look}
-          className={`binder-pick${game.binder === look ? " on" : ""}`}
-          aria-pressed={game.binder === look}
-          onClick={() => game.setBinder(look)}
-        >
-          <img src={BINDERS[look][0]} alt="" draggable={false} />
-          {t(BINDER_NAMES[look])}
-        </button>
-      ))}
+  const [action, setAction] = useState<BinderAction>("Stand");
+  const pressed = useRef(new Set<string>());
+  const send = () => {
+    const keys = pressed.current;
+    game.world()?.moveBinder(
+      Number(keys.has("d") || keys.has("ArrowRight")) - Number(keys.has("a") || keys.has("ArrowLeft")),
+      Number(keys.has("s") || keys.has("ArrowDown")) - Number(keys.has("w") || keys.has("ArrowUp")),
+    );
+  };
+  useEffect(() => {
+    const keys = new Set(["w", "a", "s", "d", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+    const key = (e: KeyboardEvent) => {
+      const value = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const down = e.type === "keydown";
+      const world = game.world();
+      if (!down && value === 'Shift') { world?.setRunning(false); return; }
+      if (e.altKey || e.ctrlKey || e.metaKey || e.isComposing || e.defaultPrevented) return;
+      if (e.type === "keydown" && e.target instanceof HTMLElement && (e.target.closest("input, textarea, [contenteditable=true]") ||
+        (value.startsWith('Arrow') && e.target.closest("select, button")))) return;
+      if (down && value === 'Shift') {
+        if (!e.repeat) world?.setRunning(true);
+        return;
+      }
+      if (!keys.has(value)) {
+        if (!down || e.repeat || ![" ", "c", "l"].includes(value)) return;
+        if (e.target instanceof HTMLElement && e.target.closest("select, button, a[href]")) return;
+        const next = value === " " ? "Jump" : value === "c"
+          ? (world?.binderPose === "Sit" ? "Stand up" : "Sit")
+          : (world?.binderPose === "Ground lie down" ? "Get up from ground" : "Ground lie down");
+        e.preventDefault();
+        if (value !== " ") { pressed.current.clear(); send(); }
+        setAction(next);
+        world?.previewBinder(next);
+        return;
+      }
+      if (down && e.repeat) return;
+      e.preventDefault();
+      if (e.type === "keydown") pressed.current.add(value);
+      else pressed.current.delete(value);
+      send();
+    };
+    const stop = () => { pressed.current.clear(); send(); game.world()?.setRunning(false); };
+    window.addEventListener("keydown", key);
+    window.addEventListener("keyup", key);
+    window.addEventListener("blur", stop);
+    document.addEventListener("visibilitychange", stop);
+    return () => {
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("keyup", key);
+      window.removeEventListener("blur", stop);
+      document.removeEventListener("visibilitychange", stop);
+      stop();
+      game.world()?.previewBinder?.(null);
+    };
+  }, []);
+  return <div className="walk-controls" role="group" aria-label={t("Move your binder")}>
+    <p>{t("Explore the courtyard")}</p>
+    <span>{t("WASD / arrow keys · hold to walk")}</span>
+    <span className="shortcut-hint">{t("Shift + move: run · Space: jump · C: sit / stand · L: lie / rise")}</span>
+    <div className="walk-pad">
+      {([["w", "↑", "Walk forward"], ["a", "←", "Walk left"], ["s", "↓", "Walk back"], ["d", "→", "Walk right"]] as const).map(([key, symbol, label]) =>
+        <button key={key} className={`walk-${key}`} aria-label={t(label)}
+          onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); pressed.current.add(key); send(); }}
+          onPointerUp={() => { pressed.current.delete(key); send(); }}
+          onPointerCancel={() => { pressed.current.delete(key); send(); }}
+          onLostPointerCapture={() => { pressed.current.delete(key); send(); }}
+          onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); pressed.current.add(key); send(); } }}
+          onKeyUp={e => { if (e.key === " " || e.key === "Enter") { pressed.current.delete(key); send(); } }}
+          onBlur={() => { pressed.current.delete(key); send(); }}
+        >{symbol}</button>)}
     </div>
-  );
+    <div className="binder-actions">
+      <select aria-label={t("Character action")} value={action} onChange={e => {
+        const selected = e.target.value as BinderAction;
+        setAction(selected);
+        game.world()?.previewBinder(selected);
+      }}>
+        {courtyardActions.map(name => <option key={name} value={name}>{t(name)}</option>)}
+      </select>
+      <button onClick={() => game.world()?.previewBinder(action)}>{t("Replay")}</button>
+    </div>
+  </div>;
 }
 
 function Home({ game }: { game: Game }) {
@@ -418,7 +476,6 @@ function Home({ game }: { game: Game }) {
         <p className="lead">
           {t("The old codex is empty and the spirits have scattered. Choose your first companion, binder.")}
         </p>
-        <BinderChoice game={game} />
         <div className="starters">
           {STARTERS.map((id) => {
             const def = spirit(id);
@@ -1011,7 +1068,6 @@ function Shop({
         {t("Paid with dingn coins. Every spirit a charm calls can also be found in the realms, and nothing here is random.")}
       </p>
       <SignInHint />
-      <BinderChoice game={game} />
       {SHELVES.map((shelf) => (
         <div key={shelf}>
           {/* A painted binder wears the robe they were painted in. */}

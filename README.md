@@ -47,6 +47,12 @@ Mythbound earns and spends dingn coins:
 
 ## Develop
 
+The courtyard loads the animated female Binder from `public/models/female-binder.glb`.
+Use WASD or the arrow keys to walk, hold Shift to run, press Space to jump,
+C to sit or stand, and L to lie down or get up. The on-screen controls also
+let you try all twelve clips. Movement stops when you leave the courtyard.
+The remaining realms keep their painted presentation.
+
 ```sh
 npm install
 npm run dev     # http://localhost:5173/
