@@ -154,6 +154,7 @@ export function MythboundGame() {
   const [owned, setOwned] = useState<Set<string>>(new Set());
   const [prefs, setPrefs] = useState<Prefs>({ sound: true, ink: "", robe: "", binder: "f" });
   const [screen, setScreen] = useState<Screen>({ name: "home" });
+  const [binderFailed, setBinderFailed] = useState(false);
   const [toast, setToast] = useState<{ text: string; id: number } | null>(null);
   const badges = useMemo(() => new Badges(sdk), []);
   // The provider hands out a new SDK object when the player signs in or out.
@@ -163,7 +164,7 @@ export function MythboundGame() {
 
   useEffect(() => {
     if (!canvas.current) return;
-    const w = new World(canvas.current);
+    const w = new World(canvas.current, setBinderFailed);
     world.current = w;
     const resize = () => w.resize();
     window.addEventListener("resize", resize);
@@ -332,6 +333,9 @@ export function MythboundGame() {
           </button>
         </span>
       </header>
+      {binderFailed && <div className="binder-error" role="alert">
+        {t("The character could not load.")} <button onClick={() => world.current?.refreshBinder()}>{t("Retry")}</button>
+      </div>}
       {toast && (
         <p key={toast.id} className="toast" onAnimationEnd={() => setToast(null)}>
           {toast.text}

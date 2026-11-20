@@ -4,8 +4,6 @@
  * art-src/ for the originals and the cut-out scripts).
  */
 import type { RealmId } from "./engine/spirits";
-import binderFemale from "./art/binder-female.webp";
-import binderMale from "./art/binder-male.webp";
 import shoresArt from "./art/shores.webp";
 import shoresTall from "./art/shores-tall.webp";
 import homeArt from "./art/home.webp";
@@ -69,11 +67,4 @@ const PAINTED_ART: Record<string, [young: Art | null, grown: Art | null]> = {
 export const painted = (id: string | null, stage: number): Art | undefined => {
   const pair = PAINTED && id ? PAINTED_ART[id] : undefined;
   return (pair && (pair[stage > 0 ? 1 : 0] ?? pair[0] ?? pair[1])) || undefined;
-};
-
-export type BinderLook = "f" | "m";
-/** The binder, as a girl or a boy: picture and its shape. */
-export const BINDERS: Record<BinderLook, [string, number]> = {
-  f: [binderFemale, 601 / 1100],
-  m: [binderMale, 634 / 1100],
 };
